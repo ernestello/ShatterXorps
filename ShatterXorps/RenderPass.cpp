@@ -1,18 +1,22 @@
 // RenderPass.cpp
+
 #include "RenderPass.h"
 #include <array>
 #include <iostream>
 
+// Initialization: Define RenderPass constructor | RenderPass.cpp | Used by main.cpp - line where RenderPass is instantiated | Creates render pass with color and depth attachments | Constructor - To configure rendering process | Depends on Vulkan device, PhysicalDevice, SwapChain | Moderate computing power | Once at [line 6 - RenderPass.cpp - constructor] | GPU
 RenderPass::RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat)
     : device(device), physicalDevice(physicalDevice), renderPass(VK_NULL_HANDLE) {
     createRenderPass(swapChainImageFormat);
 }
 
+// Initialization: Define RenderPass destructor | RenderPass.cpp | Used by main.cpp - line where RenderPass is destroyed | Destroys render pass | Destructor - To release render pass resources | Depends on Vulkan device memory | Minimal computing power | Once at [line 12 - RenderPass.cpp - destructor] | GPU
 RenderPass::~RenderPass() {
     // Ensure resources are cleaned up
     destroy(device); // Alternatively, call destroy here
 }
 
+// Initialization: Define render pass destruction function | RenderPass.cpp | Used by destructor and swap chain recreation | Destroys Vulkan render pass | Resource Cleanup - To release GPU resources | Depends on Vulkan device memory | Minimal computing power | Once at [line 17 - RenderPass.cpp - destroy] | GPU
 void RenderPass::destroy(VkDevice device) {
     if (renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device, renderPass, nullptr);
@@ -20,6 +24,7 @@ void RenderPass::destroy(VkDevice device) {
     }
 }
 
+// Initialization: Define render pass creation function | RenderPass.cpp | Used by RenderPass constructor | Configures color and depth attachments, subpasses, and dependencies | Render Pass Configuration - To define rendering steps | Depends on swap chain format and physical device capabilities | Moderate computing power | Once at [line 23 - RenderPass.cpp - createRenderPass] | GPU
 void RenderPass::createRenderPass(VkFormat swapChainImageFormat) {
     // Color attachment
     VkAttachmentDescription colorAttachment{};
@@ -97,6 +102,7 @@ void RenderPass::createRenderPass(VkFormat swapChainImageFormat) {
     std::cout << "Render pass created successfully." << std::endl;
 }
 
+// Initialization: Define depth format finding function | RenderPass.cpp | Used by createRenderPass | Selects appropriate depth format | Depth Format Identification - To support depth testing | Depends on physical device's supported formats | Minimal computing power | Once at [line 88 - RenderPass.cpp - findDepthFormat] | GPU
 VkFormat RenderPass::findDepthFormat() {
     return findSupportedFormat(
         { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -105,6 +111,7 @@ VkFormat RenderPass::findDepthFormat() {
     );
 }
 
+// Initialization: Define supported format finding function | RenderPass.cpp | Used by findDepthFormat | Checks available formats for required features | Supported Format Selection - To ensure depth attachment compatibility | Depends on physical device's format properties | Minimal computing power | Once at [line 93 - RenderPass.cpp - findSupportedFormat] | GPU
 VkFormat RenderPass::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
     for (VkFormat format : candidates) {
         VkFormatProperties props;

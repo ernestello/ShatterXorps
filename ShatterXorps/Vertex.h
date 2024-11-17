@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 #include <array>
 
+// Initialization: Define Vertex struct | Vertex.h | Used by GraphicsPipeline.cpp and main.cpp | Represents a vertex with position and color | Struct Definition - To define vertex attributes | Depends on rendering requirements | Minimal computing power | Defined once at [line 4 - Vertex.h - global scope] | GPU
 struct Vertex {
     glm::vec2 position;
     glm::vec3 color;

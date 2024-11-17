@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 
+// Initialization: Define GraphicsPipeline class | GraphicsPipeline.h | Used by main.cpp and other classes | Encapsulates Vulkan graphics pipeline functionality | Class Definition - To manage pipeline resources | Depends on Vulkan device, SwapChain, RenderPass | High computing power | Defined once at [line 4 - GraphicsPipeline.h - global scope] | GPU
 class GraphicsPipeline {
 public:
     GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass);

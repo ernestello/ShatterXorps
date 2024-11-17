@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
+// Initialization: Define RenderPass class | RenderPass.h | Used by main.cpp and other classes | Encapsulates Vulkan render pass functionality | Class Definition - To manage render pass resources | Depends on Vulkan device, PhysicalDevice, SwapChain | Moderate computing power | Defined once at [line 4 - RenderPass.h - global scope] | GPU
 class RenderPass {
 public:
     RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat);

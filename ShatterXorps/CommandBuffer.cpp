@@ -1,17 +1,21 @@
 // CommandBuffer.cpp
+
 #include "CommandBuffer.h"
 #include <stdexcept>
 #include <array>
 
+// Initialization: Define CommandBuffer constructor | CommandBuffer.cpp | Used by main.cpp - line where CommandBuffer is instantiated | Allocates command buffers from the pool | Constructor - To prepare command buffers for recording | Depends on Vulkan device and CommandPool | Minimal computing power | Once per command buffer creation at [line 6 - CommandBuffer.cpp - constructor] | CPU
 CommandBuffer::CommandBuffer(VkDevice device, VkCommandPool commandPool, size_t bufferCount)
     : device(device), commandPool(commandPool), commandBuffers(bufferCount) {
     createCommandBuffers(bufferCount);
 }
 
+// Initialization: Define CommandBuffer destructor | CommandBuffer.cpp | Used by main.cpp - line where CommandBuffer is destroyed | Frees command buffers | Destructor - To release command buffer resources | Depends on Vulkan device and CommandPool | Minimal computing power | Once per command buffer destruction at [line 12 - CommandBuffer.cpp - destructor] | CPU
 CommandBuffer::~CommandBuffer() {
     vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 }
 
+// Initialization: Define command buffer creation function | CommandBuffer.cpp | Used by CommandBuffer constructor | Allocates Vulkan command buffers | Command Buffer Allocation - To record rendering commands | Depends on Vulkan device and CommandPool | Minimal computing power | Once per buffer allocation at [line 17 - CommandBuffer.cpp - createCommandBuffers] | CPU
 void CommandBuffer::createCommandBuffers(size_t bufferCount) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -24,6 +28,7 @@ void CommandBuffer::createCommandBuffers(size_t bufferCount) {
     }
 }
 
+// Initialization: Define command buffer recording function | CommandBuffer.cpp | Used by main.cpp - line where command buffers are recorded | Records rendering commands into each command buffer | Command Recording - To define rendering operations | Depends on RenderPass, SwapChain, GraphicsPipeline, DescriptorSets, VertexBuffer | High computing power | Once per frame at [line 27 - CommandBuffer.cpp - recordCommandBuffers] | CPU, GPU
 void CommandBuffer::recordCommandBuffers(
     VkRenderPass renderPass,
     const std::vector<VkFramebuffer>& framebuffers,

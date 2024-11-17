@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+// Initialization: Define VulkanInstance class | VulkanInstance.h | Used by main.cpp and other classes | Encapsulates Vulkan instance functionality | Class Definition - To manage Vulkan instance and debug messenger | Depends on Vulkan instance and extensions | Minimal to moderate computing power | Defined once at [line 4 - VulkanInstance.h - global scope] | CPU, GPU
 class VulkanInstance {
 public:
     VulkanInstance(const std::string& appName, uint32_t appVersion, const std::vector<const char*>& extensions);

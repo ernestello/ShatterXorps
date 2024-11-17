@@ -1,6 +1,9 @@
 // main.cpp
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+// Initialization: Include standard and third-party libraries | main.cpp | Used by main.cpp - lines where included | Includes necessary libraries for Vulkan and window management | Header Inclusion - to provide necessary functions and classes | Minimal memory usage | Minimal computing power | Once at [line 3 - main.cpp - global scope] | CPU
 
 #include "VulkanInstance.h"
 #include "PhysicalDevice.h"
@@ -27,15 +30,18 @@
 #include <algorithm>
 #include <sstream>
 
+// Initialization: Define window dimensions | main.cpp | Used by initWindow and other functions | Sets the width and height for the GLFW window | Constant Definition - to define window size | 8 bytes (two uint32_t) | Negligible computing power | Once at [line 20 - main.cpp - global scope] | CPU
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
+// Initialization: Define vertex data | main.cpp | Used by main.cpp - vertex buffer creation | Specifies the vertices of the triangle to be rendered | Data Initialization - to provide vertex positions and colors | Depends on vertex count and structure | Minimal computing power | Once at [line 23 - main.cpp - global scope] | CPU
 const std::vector<Vertex> vertices = {
     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Vertex 1: position and color
     {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}}, // Vertex 2: position and color
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}  // Vertex 3: position and color
 };
 
+// Initialization: Define window initialization function | main.cpp | Used by main - main function | Initializes GLFW and creates a Vulkan-compatible window | Function Definition - to encapsulate window setup | Depends on GLFW and Vulkan requirements | Minimal computing power | Once at [line 29 - main.cpp - global scope] | CPU
 GLFWwindow* initWindow() {
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW!");
@@ -51,6 +57,7 @@ GLFWwindow* initWindow() {
     return window;
 }
 
+// Initialization: Define swap chain recreation function | main.cpp | Used by main - main function | Handles swap chain recreation on window resize or other events | Function Definition - to manage dynamic swap chain | Depends on multiple Vulkan objects | Depends on swap chain support | Minimal to moderate computing power | When triggered by window events at [line 44 - main.cpp - global scope] | CPU, GPU
 void recreateSwapChain(
     GLFWwindow* window,
     VkDevice device,
@@ -67,7 +74,7 @@ void recreateSwapChain(
     vkDeviceWaitIdle(device);
 
     swapChain.destroy();
-    renderPass.~RenderPass();
+    renderPass.destroy(device);
     graphicsPipeline.~GraphicsPipeline();
 
     swapChain = SwapChain(physicalDevice, device, swapChain.getSurface(), window);
@@ -95,7 +102,6 @@ void recreateSwapChain(
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
     }
-
 
     // Recreate descriptor pool and descriptor sets
     vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -157,49 +163,59 @@ void recreateSwapChain(
     );
 }
 
+// STEP: 0 | Pre-initialized components | FROM - Various initialization steps | Initializes GLFW and sets up the window | Setup - To prepare the environment | Minimal memory | Minimal computing power | Once before main loop at [line 100 - main.cpp - main]
 int main() {
     GLFWwindow* window = initWindow();
 
     try {
-        // 1. Create Vulkan instance
+        // STEP: 1 | Create Vulkan instance | FROM - main.cpp/function initWindow | Initializes the Vulkan API instance | Initialization - To set up Vulkan context | Depends on VulkanInstance class memory | Minimal computing power | Once at [line 107 - main.cpp - main] | GPU
+
         std::vector<const char*> extensions;
         VulkanInstance vulkanInstance("My Vulkan App", VK_MAKE_VERSION(1, 0, 0), extensions);
         VkInstance instance = vulkanInstance.getInstance();
         std::cout << "Vulkan instance created successfully." << std::endl;
 
-        // 2. Create Vulkan surface
+        // STEP: 2 | Create Vulkan surface | FROM - main.cpp/line 107/function main | Creates a rendering surface for Vulkan | Surface Creation - To enable rendering to window | Depends on GLFW and Vulkan instance memory | Minimal computing power | Once at [line 112 - main.cpp - main] | GPU
+
         VkSurfaceKHR surface;
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create window surface!");
         }
         std::cout << "Window surface created successfully." << std::endl;
 
-        // 3. Select physical device and create logical device
+        // STEP: 3 | Select physical device and create logical device | FROM - PhysicalDevice.cpp/line X/function constructor | Chooses GPU and sets up logical device | Device Selection - To utilize GPU capabilities | Depends on PhysicalDevice class memory | Moderate computing power | Once at [line 119 - main.cpp - main] | GPU
+
         PhysicalDevice physicalDevice(instance, surface);
         VkDevice device = physicalDevice.getDevice();
         std::cout << "Physical and logical devices created successfully." << std::endl;
 
-        // 4. Create swap chain
+        // STEP: 4 | Create swap chain | FROM - SwapChain.cpp/line X/function constructor | Sets up swap chain for image presentation | Swap Chain Setup - To handle image buffers | Depends on SwapChain class memory | Moderate computing power | Once at [line 124 - main.cpp - main] | GPU
+
         SwapChain swapChain(physicalDevice, device, surface, window);
         std::cout << "Swap chain created successfully." << std::endl;
 
-        // 5. Create render pass
+        // STEP: 5 | Create render pass | FROM - RenderPass.cpp/line X/function constructor | Configures render pass for rendering pipeline | Render Pass Configuration - To define rendering steps | Depends on RenderPass class memory | Moderate computing power | Once at [line 129 - main.cpp - main] | GPU
+
         RenderPass renderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
         std::cout << "Render pass created successfully." << std::endl;
 
-        // 6. Create graphics pipeline
+        // STEP: 6 | Create graphics pipeline | FROM - GraphicsPipeline.cpp/line X/function constructor | Sets up the graphics pipeline | Pipeline Setup - To define rendering operations | Depends on GraphicsPipeline class memory | High computing power | Once at [line 134 - main.cpp - main] | GPU
+
         GraphicsPipeline graphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
         std::cout << "Graphics pipeline created successfully." << std::endl;
 
-        // 7. Create framebuffers
+        // STEP: 7 | Create framebuffers | FROM - SwapChain.cpp/line X/function createFramebuffers | Establishes framebuffers for rendering | Framebuffer Creation - To hold rendered images | Depends on SwapChain and RenderPass memory | Moderate computing power | Once at [line 139 - main.cpp - main] | GPU
+
         swapChain.createFramebuffers(renderPass.getRenderPass());
         std::cout << "Framebuffers created successfully." << std::endl;
 
-        // 8. Create command pool
+        // STEP: 8 | Create command pool | FROM - CommandPool.cpp/line X/function constructor | Initializes command pool for buffer allocations | Command Pool Setup - To manage command buffers | Depends on CommandPool class memory | Minimal computing power | Once at [line 144 - main.cpp - main] | CPU
+
         CommandPool commandPool(device, physicalDevice.getGraphicsQueueFamilyIndex());
         std::cout << "Command pool created successfully." << std::endl;
 
-        // 9. Create vertex buffer
+        // STEP: 9 | Create vertex buffer | FROM - Buffer.cpp/line X/function constructor | Allocates and binds vertex buffer memory | Vertex Buffer Creation - To store vertex data | Depends on Buffer class memory | Minimal computing power | Once at [line 149 - main.cpp - main] | GPU
+
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
         Buffer vertexBuffer(
             device,
@@ -209,7 +225,8 @@ int main() {
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
 
-        // Map memory and copy vertex data
+        // STEP: 9.1 | Map memory and copy vertex data | FROM - main.cpp/line 154/function main | Maps memory and copies vertex data to buffer | Memory Mapping - To transfer data to GPU | Depends on Buffer memory | Minimal computing power | Once at [line 154 - main.cpp - main] | CPU
+
         void* data;
         vkMapMemory(device, vertexBuffer.getMemory(), 0, bufferSize, 0, &data);
         memcpy(data, vertices.data(), (size_t)bufferSize);
@@ -217,7 +234,8 @@ int main() {
 
         std::cout << "Vertex buffer created successfully." << std::endl;
 
-        // 10. Create uniform buffers
+        // STEP: 10 | Create uniform buffers | FROM - Buffer.cpp/line X/function constructor | Allocates uniform buffers for shader data | Uniform Buffer Creation - To store transformation matrices | Depends on Buffer class memory | Minimal computing power | Once at [line 160 - main.cpp - main] | GPU
+
         VkDeviceSize uniformBufferSize = sizeof(UniformBufferObject);
         std::vector<Buffer> uniformBuffers;
         uniformBuffers.reserve(swapChain.getSwapChainImages().size());
@@ -234,7 +252,8 @@ int main() {
         std::cout << "Uniform buffers created successfully." << std::endl;
 
 
-        // 11. Create descriptor pool
+        // STEP: 11 | Create descriptor pool | FROM - main.cpp/line 170/function main | Initializes descriptor pool for shader resources | Descriptor Pool Setup - To manage descriptor sets | Depends on Vulkan device memory | Minimal computing power | Once at [line 170 - main.cpp - main] | GPU
+
         VkDescriptorPool descriptorPool;
 
         VkDescriptorPoolSize poolSize{};
@@ -252,7 +271,8 @@ int main() {
         }
         std::cout << "Descriptor pool created successfully." << std::endl;
 
-        // 12. Allocate descriptor sets
+        // STEP: 12 | Allocate descriptor sets | FROM - main.cpp/line 178/function main | Allocates descriptor sets from the pool | Descriptor Set Allocation - To bind uniform buffers to shaders | Depends on DescriptorPool and GraphicsPipeline memory | Minimal computing power | Once at [line 178 - main.cpp - main] | GPU
+
         std::vector<VkDescriptorSet> descriptorSets(uniformBuffers.size());
 
         std::vector<VkDescriptorSetLayout> layouts(uniformBuffers.size(), graphicsPipeline.getDescriptorSetLayout());
@@ -285,11 +305,13 @@ int main() {
         }
         std::cout << "Descriptor sets allocated and updated successfully." << std::endl;
 
-        // 13. Create command buffers
+        // STEP: 13 | Create command buffers | FROM - CommandBuffer.cpp/line X/function constructor | Initializes command buffers for rendering commands | Command Buffer Creation - To record rendering commands | Depends on CommandBuffer class memory | Minimal computing power | Once at [line 193 - main.cpp - main] | CPU
+
         CommandBuffer commandBufferObj(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
         std::cout << "Command buffers created successfully." << std::endl;
 
-        // 14. Record command buffers
+        // STEP: 14 | Record command buffers | FROM - CommandBuffer.cpp/line X/function recordCommandBuffers | Records rendering commands into command buffers | Command Recording - To define rendering steps | Depends on CommandBuffer, RenderPass, SwapChain, GraphicsPipeline, DescriptorSets, VertexBuffer | High computing power | Once at [line 198 - main.cpp - main] | CPU, GPU
+
         commandBufferObj.recordCommandBuffers(
             renderPass.getRenderPass(),
             swapChain.getFramebuffers(),
@@ -301,7 +323,8 @@ int main() {
         );
         std::cout << "Command buffers recorded successfully." << std::endl;
 
-        // 15. Create synchronization objects
+        // STEP: 15 | Create synchronization objects | FROM - main.cpp/line X/function main | Sets up semaphores and fences for frame synchronization | Synchronization Setup - To manage rendering and presentation synchronization | Depends on Vulkan device memory | Minimal computing power | Once at [line 205 - main.cpp - main] | CPU
+
         VkSemaphore imageAvailableSemaphore;
         VkSemaphore renderFinishedSemaphore;
         VkFence inFlightFence;

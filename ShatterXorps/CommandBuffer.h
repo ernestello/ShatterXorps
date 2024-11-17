@@ -5,6 +5,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
+// Initialization: Define CommandBuffer class | CommandBuffer.h | Used by main.cpp and other classes | Encapsulates Vulkan command buffer functionality | Class Definition - To manage command buffers | Depends on Vulkan device and CommandPool | Minimal computing power | Defined once at [line 4 - CommandBuffer.h - global scope] | CPU
 class CommandBuffer {
 public:
     CommandBuffer(VkDevice device, VkCommandPool commandPool, size_t bufferCount);

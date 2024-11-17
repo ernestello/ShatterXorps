@@ -1,4 +1,5 @@
 // VulkanInstance.cpp
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -10,7 +11,7 @@
 // Enable validation layers
 const bool enableValidationLayers = true;
 
-// Function to load extension functions
+// Initialization: Define function to create debug messenger | VulkanInstance.cpp | Used by setupDebugMessenger | Loads and invokes debug messenger creation | Debug Messenger Setup - To handle Vulkan validation messages | Depends on Vulkan instance | Minimal computing power | Once at [line 10 - VulkanInstance.cpp - CreateDebugUtilsMessengerEXT] | CPU
 VkResult VulkanInstance::CreateDebugUtilsMessengerEXT(
     VkInstance instance,
     const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
@@ -28,6 +29,7 @@ VkResult VulkanInstance::CreateDebugUtilsMessengerEXT(
     }
 }
 
+// Initialization: Define function to destroy debug messenger | VulkanInstance.cpp | Used by destructor | Loads and invokes debug messenger destruction | Debug Messenger Cleanup - To release debug messenger | Depends on Vulkan instance | Minimal computing power | Once at [line 23 - VulkanInstance.cpp - DestroyDebugUtilsMessengerEXT] | CPU
 void VulkanInstance::DestroyDebugUtilsMessengerEXT(
     VkInstance instance,
     VkDebugUtilsMessengerEXT debugMessenger,
@@ -41,6 +43,7 @@ void VulkanInstance::DestroyDebugUtilsMessengerEXT(
     }
 }
 
+// Initialization: Define VulkanInstance constructor | VulkanInstance.cpp | Used by main.cpp - line where VulkanInstance is instantiated | Creates Vulkan instance and sets up debug messenger | Constructor - To initialize Vulkan context | Depends on application info and required extensions | Minimal to moderate computing power | Once at [line 32 - VulkanInstance.cpp - constructor] | CPU, GPU
 VulkanInstance::VulkanInstance(const std::string& appName, uint32_t appVersion, const std::vector<const char*>& extensions) {
     createAppInfo(appName, appVersion);
     requiredExtensions = extensions;
@@ -64,6 +67,7 @@ VulkanInstance::VulkanInstance(const std::string& appName, uint32_t appVersion, 
     setupDebugMessenger();
 }
 
+// Initialization: Define VulkanInstance destructor | VulkanInstance.cpp | Used by main.cpp - line where VulkanInstance is destroyed | Destroys Vulkan instance and debug messenger | Destructor - To release Vulkan resources | Depends on Vulkan instance and debug messenger | Minimal computing power | Once at [line 56 - VulkanInstance.cpp - destructor] | CPU
 VulkanInstance::~VulkanInstance() {
     if (enableValidationLayers) {
         // Destroy the debug messenger before destroying the instance
@@ -72,6 +76,43 @@ VulkanInstance::~VulkanInstance() {
     vkDestroyInstance(instance, nullptr);
 }
 
+// Initialization: Define application info creation function | VulkanInstance.cpp | Used by constructor | Sets up application-specific Vulkan information | Application Info Setup - To provide metadata to Vulkan | Depends on application name and version | Minimal computing power | Once at [line 63 - VulkanInstance.cpp - createAppInfo] | CPU
+void VulkanInstance::createAppInfo(const std::string& appName, uint32_t appVersion) {
+    appInfo = {};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = appName.c_str();
+    appInfo.applicationVersion = appVersion;
+    appInfo.pEngineName = "No Engine";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.apiVersion = VK_API_VERSION_1_0;
+}
+
+// Initialization: Define validation layer support check function | VulkanInstance.cpp | Used by checkValidationLayerSupport | Verifies availability of requested validation layers | Validation Layer Check - To ensure debugging layers are available | Depends on installed Vulkan layers | Minimal computing power | Once at [line 74 - VulkanInstance.cpp - checkValidationLayerSupport] | CPU
+bool VulkanInstance::checkValidationLayerSupport() {
+    uint32_t layerCount;
+    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+    std::vector<VkLayerProperties> availableLayers(layerCount);
+    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+    for (const char* layerName : validationLayers) {
+        bool layerFound = false;
+
+        for (const auto& layerProperties : availableLayers) {
+            if (strcmp(layerName, layerProperties.layerName) == 0) {
+                layerFound = true;
+                break;
+            }
+        }
+
+        if (!layerFound) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Initialization: Define Vulkan instance creation function | VulkanInstance.cpp | Used by constructor | Configures and creates Vulkan instance | Instance Creation - To initialize Vulkan context | Depends on application info and extensions | Minimal computing power | Once at [line 95 - VulkanInstance.cpp - createInstance] | CPU
 void VulkanInstance::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
         throw std::runtime_error("Validation layers requested, but not available!");
@@ -98,41 +139,7 @@ void VulkanInstance::createInstance() {
     }
 }
 
-void VulkanInstance::createAppInfo(const std::string& appName, uint32_t appVersion) {
-    appInfo = {};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = appName.c_str();
-    appInfo.applicationVersion = appVersion;
-    appInfo.pEngineName = "No Engine";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
-}
-
-bool VulkanInstance::checkValidationLayerSupport() {
-    uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
-
-    std::vector<VkLayerProperties> availableLayers(layerCount);
-    vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
-
-    for (const char* layerName : validationLayers) {
-        bool layerFound = false;
-
-        for (const auto& layerProperties : availableLayers) {
-            if (strcmp(layerName, layerProperties.layerName) == 0) {
-                layerFound = true;
-                break;
-            }
-        }
-
-        if (!layerFound) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Static debug callback function
+// Initialization: Define static debug callback function | VulkanInstance.cpp | Used by setupDebugMessenger | Handles Vulkan debug messages | Debug Callback - To output validation messages | Depends on Vulkan debug messenger | Minimal computing power | Once at [line 115 - VulkanInstance.cpp - debugCallback] | CPU
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanInstance::debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT       messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT              messageType,
@@ -143,6 +150,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanInstance::debugCallback(
     return VK_FALSE;
 }
 
+// Initialization: Define debug messenger setup function | VulkanInstance.cpp | Used by constructor | Configures and creates debug messenger for validation layers | Debug Messenger Setup - To capture and display validation messages | Depends on Vulkan instance and debug callback | Minimal computing power | Once at [line 125 - VulkanInstance.cpp - setupDebugMessenger] | CPU
 void VulkanInstance::setupDebugMessenger() {
     if (!enableValidationLayers) return;
 

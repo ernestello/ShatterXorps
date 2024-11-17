@@ -1,15 +1,18 @@
 // GraphicsPipeline.cpp
+
 #include "GraphicsPipeline.h"
 #include "Vertex.h"
 #include <fstream>
 #include <stdexcept>
 #include <array>
 
+// Initialization: Define GraphicsPipeline constructor | GraphicsPipeline.cpp | Used by main.cpp - line where GraphicsPipeline is instantiated | Creates graphics pipeline with shaders | Constructor - To set up rendering pipeline | Depends on Vulkan device, SwapChain, RenderPass | High computing power | Once at [line 9 - GraphicsPipeline.cpp - constructor] | GPU
 GraphicsPipeline::GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass)
     : device(device), pipelineLayout(VK_NULL_HANDLE), graphicsPipeline(VK_NULL_HANDLE), descriptorSetLayout(VK_NULL_HANDLE) {
     createGraphicsPipeline(swapChainExtent, renderPass);
 }
 
+// Initialization: Define GraphicsPipeline destructor | GraphicsPipeline.cpp | Used by main.cpp - line where GraphicsPipeline is destroyed | Destroys graphics pipeline and layout | Destructor - To release pipeline resources | Depends on Vulkan device memory | High computing power | Once at [line 15 - GraphicsPipeline.cpp - destructor] | GPU
 GraphicsPipeline::~GraphicsPipeline() {
     if (graphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
@@ -22,6 +25,7 @@ GraphicsPipeline::~GraphicsPipeline() {
     }
 }
 
+// Initialization: Define graphics pipeline creation function | GraphicsPipeline.cpp | Used by GraphicsPipeline constructor | Sets up shader stages, pipeline configurations | Pipeline Setup - To define how vertices are processed and rendered | Depends on shader modules, vertex input, rasterization | High computing power | Once at [line 21 - GraphicsPipeline.cpp - createGraphicsPipeline] | GPU
 void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRenderPass renderPass) {
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
@@ -98,10 +102,10 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;                // Enable depth testing
-    depthStencil.depthWriteEnable = VK_TRUE;                // Enable depth writes
-    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;     // Set comparison to less
-    depthStencil.depthBoundsTestEnable = VK_FALSE;               // Disable depth bounds test
-    depthStencil.stencilTestEnable = VK_FALSE;               // Disable stencil test
+    depthStencil.depthWriteEnable = VK_TRUE;               // Enable depth writes
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;      // Set comparison to less
+    depthStencil.depthBoundsTestEnable = VK_FALSE;         // Disable depth bounds test
+    depthStencil.stencilTestEnable = VK_FALSE;             // Disable stencil test
 
     // Color Blend Attachment
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
@@ -170,6 +174,7 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
+// Initialization: Define shader module creation function | GraphicsPipeline.cpp | Used by createGraphicsPipeline | Creates Vulkan shader module from bytecode | Shader Module Setup - To load and compile shaders | Depends on shader bytecode and Vulkan device | Minimal computing power | Once per shader at [line 101 - GraphicsPipeline.cpp - createShaderModule] | GPU
 VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -184,6 +189,7 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& cod
     return shaderModule;
 }
 
+// Initialization: Define file reading function | GraphicsPipeline.cpp | Used by createGraphicsPipeline | Reads shader bytecode from file | File Reading - To load shader binaries | Depends on file system and shader files | Minimal computing power | Once per shader at [line 111 - GraphicsPipeline.cpp - readFile] | CPU
 std::vector<char> GraphicsPipeline::readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {

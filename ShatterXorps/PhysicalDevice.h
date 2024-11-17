@@ -6,6 +6,7 @@
 #include "SwapChainSupportDetails.h"
 #include <vector>
 
+// Initialization: Define PhysicalDevice class | PhysicalDevice.h | Used by main.cpp and other classes | Encapsulates Vulkan physical and logical device functionality | Class Definition - To manage device resources | Depends on Vulkan instance and surface | Moderate computing power | Defined once at [line 4 - PhysicalDevice.h - global scope] | GPU
 class PhysicalDevice {
 public:
     PhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
