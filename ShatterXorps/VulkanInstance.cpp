@@ -50,6 +50,16 @@ VulkanInstance::VulkanInstance(const std::string& appName, uint32_t appVersion, 
         requiredExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
+    // Get required extensions from GLFW
+    uint32_t glfwExtensionCount = 0;
+    const char** glfwExtensions;
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    // Append GLFW extensions
+    for (uint32_t i = 0; i < glfwExtensionCount; i++) {
+        requiredExtensions.push_back(glfwExtensions[i]);
+    }
+
     createInstance();
     setupDebugMessenger();
 }
@@ -71,27 +81,16 @@ void VulkanInstance::createInstance() {
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pApplicationInfo = &appInfo;
 
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+    createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+
     if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
     }
     else {
         createInfo.enabledLayerCount = 0;
-        createInfo.ppEnabledLayerNames = nullptr;
     }
-
-    // Get required extensions from GLFW
-    uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions;
-    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-    // Append GLFW extensions
-    for (uint32_t i = 0; i < glfwExtensionCount; i++) {
-        requiredExtensions.push_back(glfwExtensions[i]);
-    }
-
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-    createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
     // Create Vulkan instance
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {

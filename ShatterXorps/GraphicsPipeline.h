@@ -15,8 +15,6 @@ public:
     VkPipelineLayout getPipelineLayout() const { return pipelineLayout; }
     VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
 
-    void destroy(VkDevice device);
-
 private:
     VkDevice device;
     VkPipelineLayout pipelineLayout;
@@ -25,7 +23,6 @@ private:
 
     void createGraphicsPipeline(VkExtent2D swapChainExtent, VkRenderPass renderPass);
     VkShaderModule createShaderModule(const std::vector<char>& code);
-
     std::vector<char> readFile(const std::string& filename);
 };
 

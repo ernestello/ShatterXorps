@@ -32,12 +32,12 @@ public:
     const std::vector<VkFramebuffer>& getFramebuffers() const { return swapChainFramebuffers; }
     VkSurfaceKHR getSurface() const { return surface; }
 
-    void destroy(VkDevice device);
+    void destroy();
 
     void createFramebuffers(VkRenderPass renderPass);
 
 private:
-    PhysicalDevice& physicalDevice;
+    PhysicalDevice* physicalDevice; // Store as a pointer
     VkDevice device;
     VkSurfaceKHR surface;
     VkSwapchainKHR swapChain;
@@ -52,7 +52,7 @@ private:
     VkDeviceMemory depthImageMemory;
     VkImageView depthImageView;
 
-    void createSwapChain(VkSurfaceKHR surface, GLFWwindow* window);
+    void createSwapChain(GLFWwindow* window);
     void createImageViews();
     void createDepthResources();
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
@@ -63,7 +63,6 @@ private:
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling,
         VkFormatFeatureFlags features);
 
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface);
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);

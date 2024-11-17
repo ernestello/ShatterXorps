@@ -1,19 +1,17 @@
 // SwapChain.cpp
-
 #include "SwapChain.h"
 #include <array>
 #include <algorithm>
 #include <stdexcept>
-#include <limits> // For UINT32_MAX
+#include <limits>
 
-SwapChain::SwapChain(PhysicalDevice& physicalDevice, VkDevice device, VkSurfaceKHR surface, GLFWwindow* window)
-    : physicalDevice(physicalDevice), device(device), surface(surface), swapChain(VK_NULL_HANDLE) {
-    createSwapChain(surface, window);
+SwapChain::SwapChain(PhysicalDevice& physicalDeviceRef, VkDevice device, VkSurfaceKHR surface, GLFWwindow* window)
+    : physicalDevice(&physicalDeviceRef), device(device), surface(surface), swapChain(VK_NULL_HANDLE) {
+    createSwapChain(window);
     createImageViews();
     createDepthResources();
 }
 
-// **Move Constructor**
 SwapChain::SwapChain(SwapChain&& other) noexcept
     : physicalDevice(other.physicalDevice),
     device(other.device),
@@ -33,10 +31,9 @@ SwapChain::SwapChain(SwapChain&& other) noexcept
     other.depthImageView = VK_NULL_HANDLE;
 }
 
-// **Move Assignment Operator**
 SwapChain& SwapChain::operator=(SwapChain&& other) noexcept {
     if (this != &other) {
-        destroy(device);
+        destroy();
 
         physicalDevice = other.physicalDevice;
         device = other.device;
@@ -60,10 +57,10 @@ SwapChain& SwapChain::operator=(SwapChain&& other) noexcept {
 }
 
 SwapChain::~SwapChain() {
-    destroy(device);
+    destroy();
 }
 
-void SwapChain::destroy(VkDevice device) {
+void SwapChain::destroy() {
     vkDestroyImageView(device, depthImageView, nullptr);
     vkDestroyImage(device, depthImage, nullptr);
     vkFreeMemory(device, depthImageMemory, nullptr);
@@ -76,9 +73,10 @@ void SwapChain::destroy(VkDevice device) {
         vkDestroyImageView(device, imageView, nullptr);
     }
 
-    vkDestroySwapchainKHR(device, swapChain, nullptr);
+    if (swapChain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(device, swapChain, nullptr);
+    }
 
-    // Reset handles to prevent double-free issues
     depthImageView = VK_NULL_HANDLE;
     depthImage = VK_NULL_HANDLE;
     depthImageMemory = VK_NULL_HANDLE;
@@ -88,8 +86,8 @@ void SwapChain::destroy(VkDevice device) {
     swapChain = VK_NULL_HANDLE;
 }
 
-void SwapChain::createSwapChain(VkSurfaceKHR surface, GLFWwindow* window) {
-    SwapChainSupportDetails swapChainSupport = physicalDevice.querySwapChainSupport();
+void SwapChain::createSwapChain(GLFWwindow* window) {
+    SwapChainSupportDetails swapChainSupport = physicalDevice->querySwapChainSupport(physicalDevice->getPhysicalDevice());
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -113,26 +111,23 @@ void SwapChain::createSwapChain(VkSurfaceKHR surface, GLFWwindow* window) {
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     uint32_t queueFamilyIndices[] = {
-        physicalDevice.getGraphicsQueueFamilyIndex(),
-        physicalDevice.getPresentQueueFamilyIndex()
+        physicalDevice->getGraphicsQueueFamilyIndex(),
+        physicalDevice->getPresentQueueFamilyIndex()
     };
 
-    if (physicalDevice.getGraphicsQueueFamilyIndex() != physicalDevice.getPresentQueueFamilyIndex()) {
+    if (physicalDevice->getGraphicsQueueFamilyIndex() != physicalDevice->getPresentQueueFamilyIndex()) {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = 2;
         createInfo.pQueueFamilyIndices = queueFamilyIndices;
     }
     else {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0;       // Optional
-        createInfo.pQueueFamilyIndices = nullptr; // Optional
     }
 
     createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swap chain!");
@@ -183,7 +178,7 @@ VkFormat SwapChain::findSupportedFormat(const std::vector<VkFormat>& candidates,
     VkFormatFeatureFlags features) {
     for (VkFormat format : candidates) {
         VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(physicalDevice.getPhysicalDevice(), format, &props);
+        vkGetPhysicalDeviceFormatProperties(physicalDevice->getPhysicalDevice(), format, &props);
 
         if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
             return format;
@@ -226,7 +221,7 @@ void SwapChain::createImage(uint32_t width, uint32_t height, VkFormat format, Vk
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex =
-        physicalDevice.findMemoryType(memRequirements.memoryTypeBits, properties);
+        physicalDevice->findMemoryType(memRequirements.memoryTypeBits, properties);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate image memory!");

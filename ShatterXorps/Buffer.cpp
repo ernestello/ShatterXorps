@@ -1,38 +1,19 @@
 // Buffer.cpp
-
 #include "Buffer.h"
+#include <stdexcept>
 
-// **Default constructor implementation**
-Buffer::Buffer() : buffer(VK_NULL_HANDLE), memory(VK_NULL_HANDLE), size(0) {}
-
-// **Parameterized constructor implementation**
 Buffer::Buffer(VkDevice device, PhysicalDevice& physicalDevice, VkDeviceSize size,
     VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
-    : buffer(VK_NULL_HANDLE), memory(VK_NULL_HANDLE), size(size) {
-    createBuffer(device, physicalDevice, size, usage, properties, buffer, memory);
+    : device(device), buffer(VK_NULL_HANDLE), memory(VK_NULL_HANDLE), size(size) {
+    createBuffer(physicalDevice, size, usage, properties);
 }
 
-// **Destructor implementation**
 Buffer::~Buffer() {
-    // Destruction is handled externally via the destroy() method
+    destroy();
 }
 
-// **Method to destroy buffer and free memory**
-void Buffer::destroy(VkDevice device) {
-    if (buffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(device, buffer, nullptr);
-        buffer = VK_NULL_HANDLE;
-    }
-    if (memory != VK_NULL_HANDLE) {
-        vkFreeMemory(device, memory, nullptr);
-        memory = VK_NULL_HANDLE;
-    }
-}
-
-// **Function to create buffer**
-void Buffer::createBuffer(VkDevice device, PhysicalDevice& physicalDevice, VkDeviceSize size,
-    VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-    VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+void Buffer::createBuffer(PhysicalDevice& physicalDevice, VkDeviceSize size,
+    VkBufferUsageFlags usage, VkMemoryPropertyFlags properties) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
@@ -52,9 +33,20 @@ void Buffer::createBuffer(VkDevice device, PhysicalDevice& physicalDevice, VkDev
     allocInfo.memoryTypeIndex = physicalDevice.findMemoryType(
         memRequirements.memoryTypeBits, properties);
 
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(device, buffer, bufferMemory, 0);
+    vkBindBufferMemory(device, buffer, memory, 0);
+}
+
+void Buffer::destroy() {
+    if (buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, buffer, nullptr);
+        buffer = VK_NULL_HANDLE;
+    }
+    if (memory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, memory, nullptr);
+        memory = VK_NULL_HANDLE;
+    }
 }

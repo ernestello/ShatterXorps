@@ -1,47 +1,56 @@
 // main.cpp
 #define GLFW_INCLUDE_VULKAN
-#define GLM_FORCE_RADIANS            // Forces all angle calculations to use radians.
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE  // Makes the projection matrix suitable for Vulkan's coordinate system.
-#define GLM_ENABLE_EXPERIMENTAL      // Enable string casting for debugging
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtx/string_cast.hpp> // For glm::to_string
 #include <GLFW/glfw3.h>
 
 #include "VulkanInstance.h"
 #include "PhysicalDevice.h"
 #include "SwapChain.h"
 #include "RenderPass.h"
+#include "GraphicsPipeline.h"
 #include "CommandPool.h"
 #include "CommandBuffer.h"
-#include "GraphicsPipeline.h"
+#include "Vertex.h"
 #include "Buffer.h"
-#include "Vertex.h" // Include the Vertex header
-#include "UniformBufferObject.h" // **Added Include**
-
+#include "UniformBufferObject.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 #include <iostream>
-#include <stdexcept>
 #include <vector>
-#include <cstring> // For memset
-#include <chrono>  // For timing
-#include <sstream> // For window title updates
-#include <optional>
+#include <stdexcept>
+#include <functional>
+#include <cstdlib>
+#include <cstring>
+#include <set>
+#include <fstream>
+#include <array>
+#include <algorithm>
+#include <sstream>
 
-#include <cassert> // For assertions
+const uint32_t WIDTH = 800;
+const uint32_t HEIGHT = 600;
 
-// Forward declarations for cleanup
-void cleanupSwapChain(
-    VkDevice device,
-    SwapChain& swapChain,
-    RenderPass& renderPass,
-    GraphicsPipeline& graphicsPipeline,
-    std::vector<Buffer>& uniformBuffers,
-    VkDescriptorPool& descriptorPool, // Passed by reference
-    Buffer& vertexBuffer,
-    CommandBuffer& commandBuffer
-);
+const std::vector<Vertex> vertices = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Vertex 1: position and color
+    {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}}, // Vertex 2: position and color
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}  // Vertex 3: position and color
+};
 
-// Function to recreate the swapchain
+GLFWwindow* initWindow() {
+    if (!glfwInit()) {
+        throw std::runtime_error("Failed to initialize GLFW!");
+    }
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Window", nullptr, nullptr);
+    if (!window) {
+        throw std::runtime_error("Failed to create GLFW window!");
+    }
+
+    return window;
+}
+
 void recreateSwapChain(
     GLFWwindow* window,
     VkDevice device,
@@ -53,84 +62,74 @@ void recreateSwapChain(
     VkDescriptorPool& descriptorPool,
     Buffer& vertexBuffer,
     CommandBuffer& commandBuffer,
-    CommandPool& commandPool // Added parameter
+    VkCommandPool commandPool
 ) {
-    int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
-    while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-    }
-
     vkDeviceWaitIdle(device);
 
-    // Cleanup existing swapchain and related resources
-    cleanupSwapChain(device, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBuffer);
+    swapChain.destroy();
+    renderPass.~RenderPass();
+    graphicsPipeline.~GraphicsPipeline();
 
-    // Recreate swapchain
-    SwapChain newSwapChain(physicalDevice, device, swapChain.getSurface(), window);
-    swapChain = std::move(newSwapChain);
-    std::cout << "SwapChain recreated successfully." << std::endl;
+    swapChain = SwapChain(physicalDevice, device, swapChain.getSurface(), window);
+    renderPass = RenderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
+    graphicsPipeline = GraphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
 
-    // Recreate render pass
-    RenderPass newRenderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
-    renderPass = std::move(newRenderPass);
-    std::cout << "Render pass recreated successfully." << std::endl;
-
-    // Recreate graphics pipeline
-    GraphicsPipeline newGraphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
-    graphicsPipeline = std::move(newGraphicsPipeline);
-    std::cout << "Graphics pipeline recreated successfully." << std::endl;
-
-    // Recreate framebuffers
     swapChain.createFramebuffers(renderPass.getRenderPass());
-    std::cout << "Framebuffers recreated successfully." << std::endl;
 
-    // Recreate uniform buffers
-    size_t bufferCount = swapChain.getFramebuffers().size();
-    uniformBuffers.clear();
-    uniformBuffers.reserve(bufferCount);
-    for (size_t i = 0; i < bufferCount; i++) {
-        uniformBuffers.emplace_back(device, physicalDevice, sizeof(UniformBufferObject),
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    // Recreate uniform buffers and descriptor sets
+    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+    // Destroy old uniform buffers
+    for (auto& uniformBuffer : uniformBuffers) {
+        uniformBuffer.destroy();
     }
-    std::cout << "Uniform buffers recreated successfully." << std::endl;
+    uniformBuffers.clear();
 
-    // Recreate descriptor pool
-    VkDescriptorPoolCreateInfo poolInfoDesc{};
-    poolInfoDesc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    uniformBuffers.reserve(swapChain.getSwapChainImages().size());
+    for (size_t i = 0; i < swapChain.getSwapChainImages().size(); i++) {
+        uniformBuffers.emplace_back(
+            device,
+            physicalDevice,
+            bufferSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+    }
+
+
+    // Recreate descriptor pool and descriptor sets
+    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(bufferCount);
-    poolInfoDesc.poolSizeCount = 1;
-    poolInfoDesc.pPoolSizes = &poolSize;
-    poolInfoDesc.maxSets = static_cast<uint32_t>(bufferCount);
+    poolSize.descriptorCount = static_cast<uint32_t>(uniformBuffers.size());
 
-    if (vkCreateDescriptorPool(device, &poolInfoDesc, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to recreate descriptor pool!");
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.maxSets = static_cast<uint32_t>(uniformBuffers.size());
+
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor pool!");
     }
-    std::cout << "Descriptor pool recreated successfully." << std::endl;
 
-    // Allocate descriptor sets
-    std::vector<VkDescriptorSet> descriptorSets(bufferCount);
-    std::vector<VkDescriptorSetLayout> layouts(bufferCount, graphicsPipeline.getDescriptorSetLayout());
+    std::vector<VkDescriptorSet> descriptorSets(uniformBuffers.size());
 
-    VkDescriptorSetAllocateInfo allocInfoDesc{};
-    allocInfoDesc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfoDesc.descriptorPool = descriptorPool;
-    allocInfoDesc.descriptorSetCount = static_cast<uint32_t>(bufferCount);
-    allocInfoDesc.pSetLayouts = layouts.data();
+    std::vector<VkDescriptorSetLayout> layouts(uniformBuffers.size(), graphicsPipeline.getDescriptorSetLayout());
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(uniformBuffers.size());
+    allocInfo.pSetLayouts = layouts.data();
 
-    if (vkAllocateDescriptorSets(device, &allocInfoDesc, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor sets during swapchain recreation!");
+    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate descriptor sets!");
     }
-    std::cout << "Descriptor sets allocated successfully during swapchain recreation." << std::endl;
 
-    // Update descriptor sets
-    for (size_t i = 0; i < bufferCount; i++) {
+    for (size_t i = 0; i < uniformBuffers.size(); i++) {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i].buffer;
+        bufferInfo.buffer = uniformBuffers[i].getBuffer();
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -145,14 +144,8 @@ void recreateSwapChain(
 
         vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
     }
-    std::cout << "Descriptor sets updated successfully during swapchain recreation." << std::endl;
 
-    // Reset the command pool to reuse it
-    vkResetCommandPool(device, commandPool.getCommandPool(), 0);
-    std::cout << "Command pool reset successfully during swapchain recreation." << std::endl;
-
-    // Recreate command buffers
-    commandBuffer = CommandBuffer(device, commandPool.getCommandPool(), bufferCount);
+    // Re-record command buffers
     commandBuffer.recordCommandBuffers(
         renderPass.getRenderPass(),
         swapChain.getFramebuffers(),
@@ -160,147 +153,122 @@ void recreateSwapChain(
         swapChain.getSwapChainExtent(),
         descriptorSets,
         graphicsPipeline.getPipelineLayout(),
-        vertexBuffer.buffer // Pass the vertex buffer
+        vertexBuffer.getBuffer()
     );
-    std::cout << "Command buffers recorded successfully during swapchain recreation." << std::endl;
 }
 
 int main() {
+    GLFWwindow* window = initWindow();
+
     try {
-        // 1. Initialize GLFW
-        if (!glfwInit()) {
-            std::cerr << "Failed to initialize GLFW!\n";
-            return EXIT_FAILURE;
-        }
-
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // Prevents GLFW from creating an OpenGL context
-
-        // 2. Create a GLFW window
-        int width = 800;
-        int height = 600;
-        GLFWwindow* window = glfwCreateWindow(width, height, "My Vulkan App", nullptr, nullptr);
-        if (!window) {
-            throw std::runtime_error("Failed to create GLFW window!");
-        }
-
-        // 3. Retrieve required Vulkan extensions from GLFW
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        // Convert to a std::vector for easier handling
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-        // 4. Create Vulkan instance with the required extensions
+        // 1. Create Vulkan instance
+        std::vector<const char*> extensions;
         VulkanInstance vulkanInstance("My Vulkan App", VK_MAKE_VERSION(1, 0, 0), extensions);
         VkInstance instance = vulkanInstance.getInstance();
-        std::cout << "Vulkan instance created successfully.\n";
+        std::cout << "Vulkan instance created successfully." << std::endl;
 
-        // 5. Create Vulkan surface for the window
+        // 2. Create Vulkan surface
         VkSurfaceKHR surface;
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Vulkan surface!");
+            throw std::runtime_error("Failed to create window surface!");
         }
+        std::cout << "Window surface created successfully." << std::endl;
 
-        // 6. Enumerate Physical Devices and Create Logical Device
-        PhysicalDevice physicalDevice(instance, surface); // Pass the surface
-        VkPhysicalDeviceProperties deviceProperties = physicalDevice.getProperties();
-
-        std::cout << "Selected GPU: " << deviceProperties.deviceName << "\n";
-
-        // 7. After creating the Vulkan device
+        // 3. Select physical device and create logical device
+        PhysicalDevice physicalDevice(instance, surface);
         VkDevice device = physicalDevice.getDevice();
-        std::cout << "Logical device created successfully." << std::endl;
+        std::cout << "Physical and logical devices created successfully." << std::endl;
 
-        // 8. Initialize SwapChain
+        // 4. Create swap chain
         SwapChain swapChain(physicalDevice, device, surface, window);
-        std::cout << "SwapChain initialized successfully." << std::endl;
+        std::cout << "Swap chain created successfully." << std::endl;
 
-        // 9. Create Render Pass
+        // 5. Create render pass
         RenderPass renderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
         std::cout << "Render pass created successfully." << std::endl;
 
-        // 10. Create Graphics Pipeline
+        // 6. Create graphics pipeline
         GraphicsPipeline graphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
         std::cout << "Graphics pipeline created successfully." << std::endl;
 
-        // 11. Create Framebuffers
+        // 7. Create framebuffers
         swapChain.createFramebuffers(renderPass.getRenderPass());
         std::cout << "Framebuffers created successfully." << std::endl;
 
-        // 12. Create Command Pool
+        // 8. Create command pool
         CommandPool commandPool(device, physicalDevice.getGraphicsQueueFamilyIndex());
-        std::cout << "Command Pool created successfully." << std::endl;
+        std::cout << "Command pool created successfully." << std::endl;
 
-        // 13. Retrieve queues
-        VkQueue graphicsQueue;
-        vkGetDeviceQueue(device, physicalDevice.getGraphicsQueueFamilyIndex(), 0, &graphicsQueue);
-        VkQueue presentQueue;
-        vkGetDeviceQueue(device, physicalDevice.getPresentQueueFamilyIndex(), 0, &presentQueue);
-        std::cout << "Queues retrieved successfully." << std::endl;
+        // 9. Create vertex buffer
+        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+        Buffer vertexBuffer(
+            device,
+            physicalDevice,
+            bufferSize,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
 
-        // 14. Create synchronization objects
-        VkSemaphore imageAvailableSemaphore;
-        VkSemaphore renderFinishedSemaphore;
-        VkFence inFlightFence;
+        // Map memory and copy vertex data
+        void* data;
+        vkMapMemory(device, vertexBuffer.getMemory(), 0, bufferSize, 0, &data);
+        memcpy(data, vertices.data(), (size_t)bufferSize);
+        vkUnmapMemory(device, vertexBuffer.getMemory());
 
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        std::cout << "Vertex buffer created successfully." << std::endl;
 
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Start signaled so the first frame can be rendered
-
-        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
-            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create synchronization objects!");
-        }
-        std::cout << "Synchronization objects created successfully." << std::endl;
-
-        // 15. Create Uniform Buffers
-        size_t bufferCount = swapChain.getFramebuffers().size();
+        // 10. Create uniform buffers
+        VkDeviceSize uniformBufferSize = sizeof(UniformBufferObject);
         std::vector<Buffer> uniformBuffers;
-        uniformBuffers.reserve(bufferCount);
-        for (size_t i = 0; i < bufferCount; i++) {
-            uniformBuffers.emplace_back(device, physicalDevice, sizeof(UniformBufferObject),
-                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        }
+        uniformBuffers.reserve(swapChain.getSwapChainImages().size());
 
-        // 16. Create Descriptor Pool
+        for (size_t i = 0; i < swapChain.getSwapChainImages().size(); i++) {
+            uniformBuffers.emplace_back(
+                device,
+                physicalDevice,
+                uniformBufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+        }
+        std::cout << "Uniform buffers created successfully." << std::endl;
+
+
+        // 11. Create descriptor pool
         VkDescriptorPool descriptorPool;
+
         VkDescriptorPoolSize poolSize{};
         poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(bufferCount);
+        poolSize.descriptorCount = static_cast<uint32_t>(uniformBuffers.size());
 
-        VkDescriptorPoolCreateInfo poolInfoDesc{};
-        poolInfoDesc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfoDesc.poolSizeCount = 1;
-        poolInfoDesc.pPoolSizes = &poolSize;
-        poolInfoDesc.maxSets = static_cast<uint32_t>(bufferCount);
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<uint32_t>(uniformBuffers.size());
 
-        if (vkCreateDescriptorPool(device, &poolInfoDesc, nullptr, &descriptorPool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create descriptor pool!");
         }
+        std::cout << "Descriptor pool created successfully." << std::endl;
 
-        // 17. Allocate Descriptor Sets
-        std::vector<VkDescriptorSet> descriptorSets(bufferCount);
-        std::vector<VkDescriptorSetLayout> layouts(bufferCount, graphicsPipeline.getDescriptorSetLayout());
+        // 12. Allocate descriptor sets
+        std::vector<VkDescriptorSet> descriptorSets(uniformBuffers.size());
 
-        VkDescriptorSetAllocateInfo allocInfoDesc{};
-        allocInfoDesc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfoDesc.descriptorPool = descriptorPool;
-        allocInfoDesc.descriptorSetCount = static_cast<uint32_t>(bufferCount);
-        allocInfoDesc.pSetLayouts = layouts.data();
+        std::vector<VkDescriptorSetLayout> layouts(uniformBuffers.size(), graphicsPipeline.getDescriptorSetLayout());
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(uniformBuffers.size());
+        allocInfo.pSetLayouts = layouts.data();
 
-        if (vkAllocateDescriptorSets(device, &allocInfoDesc, descriptorSets.data()) != VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate descriptor sets!");
         }
 
-        // 18. Update Descriptor Sets
-        for (size_t i = 0; i < bufferCount; i++) {
+        for (size_t i = 0; i < uniformBuffers.size(); i++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = uniformBuffers[i].buffer;
+            bufferInfo.buffer = uniformBuffers[i].getBuffer();
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -315,34 +283,13 @@ int main() {
 
             vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
         }
+        std::cout << "Descriptor sets allocated and updated successfully." << std::endl;
 
-        // **Define Vertex Data**
-        const std::vector<Vertex> vertices = {
-            {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left vertex (Red)
-            {{0.5f, -0.5f},  {0.0f, 1.0f, 0.0f}}, // Bottom-right vertex (Green)
-            {{0.0f, 0.5f},   {0.0f, 0.0f, 1.0f}}  // Top vertex (Blue)
-        };
+        // 13. Create command buffers
+        CommandBuffer commandBufferObj(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
+        std::cout << "Command buffers created successfully." << std::endl;
 
-        // **Create the Vertex Buffer**
-        Buffer vertexBuffer(device, physicalDevice, sizeof(vertices[0]) * vertices.size(),
-            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-
-        // Copy vertex data to the buffer
-        void* vertexData;
-        VkResult mapResult = vkMapMemory(device, vertexBuffer.memory, 0, vertexBuffer.size, 0, &vertexData);
-        if (mapResult != VK_SUCCESS) {
-            throw std::runtime_error("Failed to map vertex buffer memory!");
-        }
-        memcpy(vertexData, vertices.data(), static_cast<size_t>(vertexBuffer.size));
-        vkUnmapMemory(device, vertexBuffer.memory);
-
-        // 19. Create Command Buffers
-        CommandBuffer commandBufferObj(device, commandPool.getCommandPool(), bufferCount);
-        std::cout << "Command Buffers created successfully." << std::endl;
-
-        // 20. Record Command Buffers
+        // 14. Record command buffers
         commandBufferObj.recordCommandBuffers(
             renderPass.getRenderPass(),
             swapChain.getFramebuffers(),
@@ -350,14 +297,39 @@ int main() {
             swapChain.getSwapChainExtent(),
             descriptorSets,
             graphicsPipeline.getPipelineLayout(),
-            vertexBuffer.buffer // Pass the vertex buffer
+            vertexBuffer.getBuffer()
         );
-        std::cout << "Command Buffers recorded successfully." << std::endl;
+        std::cout << "Command buffers recorded successfully." << std::endl;
 
-        // **Timing for Uniform Buffer Updates**
+        // 15. Create synchronization objects
+        VkSemaphore imageAvailableSemaphore;
+        VkSemaphore renderFinishedSemaphore;
+        VkFence inFlightFence;
+
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
+            vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create synchronization objects!");
+        }
+        std::cout << "Synchronization objects created successfully." << std::endl;
+
+        VkQueue graphicsQueue;
+        vkGetDeviceQueue(device, physicalDevice.getGraphicsQueueFamilyIndex(), 0, &graphicsQueue);
+
+        VkQueue presentQueue;
+        vkGetDeviceQueue(device, physicalDevice.getPresentQueueFamilyIndex(), 0, &presentQueue);
+
+        // Timing for uniform buffer updates
         auto startTime = std::chrono::high_resolution_clock::now();
 
-        // **Timing variables for FPS calculation**
+        // Timing variables for FPS calculation
         auto fpsStartTime = std::chrono::high_resolution_clock::now();
         int frameCount = 0;
 
@@ -380,8 +352,8 @@ int main() {
             uint32_t imageIndex;
             VkResult result = vkAcquireNextImageKHR(device, swapChain.getSwapChain(), UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
             if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-                // Recreate the swapchain
-                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool);
+                // Recreate the swap chain
+                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool.getCommandPool());
                 continue;
             }
             else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -391,7 +363,7 @@ int main() {
             // 3. Reset the fence for the current frame
             vkResetFences(device, 1, &inFlightFence);
 
-            // **Update the uniform buffer for the current frame**
+            // Update the uniform buffer for the current frame
             auto currentTime = std::chrono::high_resolution_clock::now();
             float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
@@ -411,18 +383,11 @@ int main() {
                 throw std::runtime_error("imageIndex out of bounds!");
             }
 
-            if (uniformBuffers[imageIndex].memory == VK_NULL_HANDLE) {
-                throw std::runtime_error("Uniform buffer memory is null!");
-            }
-
             // Map memory
-            void* data;
-            VkResult mapResultUBO = vkMapMemory(device, uniformBuffers[imageIndex].memory, 0, sizeof(ubo), 0, &data);
-            if (mapResultUBO != VK_SUCCESS) {
-                throw std::runtime_error("Failed to map uniform buffer memory!");
-            }
-            memcpy(data, &ubo, sizeof(ubo));
-            vkUnmapMemory(device, uniformBuffers[imageIndex].memory);
+            void* uboData;
+            vkMapMemory(device, uniformBuffers[imageIndex].getMemory(), 0, sizeof(ubo), 0, &uboData);
+            memcpy(uboData, &ubo, sizeof(ubo));
+            vkUnmapMemory(device, uniformBuffers[imageIndex].getMemory());
 
             // 4. Submit the command buffer
             VkSubmitInfo submitInfo{};
@@ -458,15 +423,15 @@ int main() {
 
             result = vkQueuePresentKHR(presentQueue, &presentInfo);
             if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-                // Recreate the swapchain
-                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool);
+                // Recreate the swap chain
+                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool.getCommandPool());
                 continue;
             }
             else if (result != VK_SUCCESS) {
                 throw std::runtime_error("Failed to present swap chain image!");
             }
 
-            // **FPS Counter**
+            // FPS Counter
             frameCount++;
 
             auto fpsCurrentTime = std::chrono::high_resolution_clock::now();
@@ -490,26 +455,28 @@ int main() {
         }
 
         vkDeviceWaitIdle(device);
-        std::cout << "Idle device." << std::endl;
+        std::cout << "Device idle. Cleaning up resources..." << std::endl;
 
-        // 6. Cleanup synchronization objects
+        // Cleanup synchronization objects
         vkDestroyFence(device, inFlightFence, nullptr);
         vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
         vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
         std::cout << "Synchronization objects cleaned up." << std::endl;
 
-        // 7. Clean up uniform buffers and descriptor pool
+        // Cleanup uniform buffers and descriptor pool
         for (auto& uniformBuffer : uniformBuffers) {
-            uniformBuffer.destroy(device); // Use destroy() instead of cleanup()
+            uniformBuffer.destroy();
         }
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-        // **Destroy the vertex buffer**
-        vertexBuffer.destroy(device);
+        // The vertex buffer will be destroyed in its destructor
 
-        // 8. Clean up remaining Vulkan objects
-        cleanupSwapChain(device, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj);
-        std::cout << "Swapchain and related resources cleaned up." << std::endl;
+        // Cleanup swap chain and related resources
+        swapChain.destroy();
+        renderPass.~RenderPass();
+        graphicsPipeline.~GraphicsPipeline();
+        commandPool.~CommandPool();
+        std::cout << "Swap chain and related resources cleaned up." << std::endl;
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyDevice(device, nullptr);
@@ -519,46 +486,12 @@ int main() {
     }
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
+        glfwDestroyWindow(window);
+        glfwTerminate();
         return EXIT_FAILURE;
     }
 
     // vkDestroyInstance is automatically called when vulkanInstance goes out of scope
     std::cout << "Vulkan instance destroyed successfully.\n";
     return EXIT_SUCCESS;
-}
-
-void cleanupSwapChain(
-    VkDevice device,
-    SwapChain& swapChain,
-    RenderPass& renderPass,
-    GraphicsPipeline& graphicsPipeline,
-    std::vector<Buffer>& uniformBuffers,
-    VkDescriptorPool& descriptorPool,
-    Buffer& vertexBuffer,
-    CommandBuffer& commandBuffer
-) {
-    // Wait for the device to be idle before cleanup
-    vkDeviceWaitIdle(device);
-
-    // Destroy the descriptor pool
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-    descriptorPool = VK_NULL_HANDLE;
-
-    // Destroy uniform buffers
-    for (auto& uniformBuffer : uniformBuffers) {
-        uniformBuffer.destroy(device);
-    }
-    uniformBuffers.clear();
-
-    // Destroy graphics pipeline and render pass
-    graphicsPipeline.destroy(device);
-    renderPass.destroy(device);
-
-    // Destroy swapchain and its framebuffers
-    swapChain.destroy(device);
-
-    // Destroy the vertex buffer
-    vertexBuffer.destroy(device);
-
-    // Command buffers are already reset and re-recorded in recreateSwapChain
 }

@@ -1,9 +1,8 @@
 // GraphicsPipeline.cpp
 #include "GraphicsPipeline.h"
-#include "Vertex.h" // Include the Vertex header
+#include "Vertex.h"
 #include <fstream>
 #include <stdexcept>
-#include <iostream>
 #include <array>
 
 GraphicsPipeline::GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass)
@@ -12,54 +11,15 @@ GraphicsPipeline::GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, 
 }
 
 GraphicsPipeline::~GraphicsPipeline() {
-    // Ensure resources are cleaned up
-    destroy(device); // Alternatively, call destroy here
-}
-
-void GraphicsPipeline::destroy(VkDevice device) {
     if (graphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
-        graphicsPipeline = VK_NULL_HANDLE;
     }
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-        pipelineLayout = VK_NULL_HANDLE;
     }
     if (descriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-        descriptorSetLayout = VK_NULL_HANDLE;
     }
-}
-
-std::vector<char> GraphicsPipeline::readFile(const std::string& filename) {
-    std::cout << "Attempting to read shader file: " << filename << std::endl;
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open shader file: " << filename << std::endl;
-        throw std::runtime_error("Failed to open shader file: " + filename);
-    }
-    size_t fileSize = (size_t)file.tellg();
-    std::vector<char> buffer(fileSize);
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
-    file.close();
-    return buffer;
-}
-
-VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& code) {
-    VkShaderModuleCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-    VkShaderModule shaderModule;
-    VkResult result = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule);
-
-    if (result != VK_SUCCESS) {
-        std::cerr << "Failed to create shader module! Error code: " << result << std::endl;
-        throw std::runtime_error("Failed to create shader module!");
-    }
-    return shaderModule;
 }
 
 void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRenderPass renderPass) {
@@ -69,7 +29,6 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
 
-    // Shader stage creation
     VkPipelineShaderStageCreateInfo shaderStages[2]{};
 
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -82,7 +41,6 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     shaderStages[1].module = fragShaderModule;
     shaderStages[1].pName = "main";
 
-    // **Vertex Input State**
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescriptions = Vertex::getAttributeDescriptions();
 
@@ -158,10 +116,6 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     colorBlending.logicOp = VK_LOGIC_OP_COPY;
     colorBlending.attachmentCount = 1;
     colorBlending.pAttachments = &colorBlendAttachment;
-    colorBlending.blendConstants[0] = 0.0f;
-    colorBlending.blendConstants[1] = 0.0f;
-    colorBlending.blendConstants[2] = 0.0f;
-    colorBlending.blendConstants[3] = 0.0f;
 
     // Descriptor Set Layout
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -185,8 +139,6 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
     if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create pipeline layout!");
@@ -207,18 +159,43 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     // Create the Graphics Pipeline
-    VkResult result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
-    if (result != VK_SUCCESS || graphicsPipeline == VK_NULL_HANDLE) {
-        std::cerr << "Failed to create graphics pipeline! Error code: " << result << std::endl;
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS || graphicsPipeline == VK_NULL_HANDLE) {
         throw std::runtime_error("Failed to create graphics pipeline!");
     }
-
-    std::cout << "Graphics pipeline created successfully." << std::endl;
 
     // Clean up shader modules
     vkDestroyShaderModule(device, fragShaderModule, nullptr);
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
+}
+
+VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& code) {
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = code.size();
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create shader module!");
+    }
+
+    return shaderModule;
+}
+
+std::vector<char> GraphicsPipeline::readFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open shader file: " + filename);
+    }
+
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    std::vector<char> buffer(fileSize);
+
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    file.close();
+
+    return buffer;
 }

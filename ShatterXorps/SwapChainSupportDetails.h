@@ -1,4 +1,4 @@
-#pragma once
+// SwapChainSupportDetails.h
 #ifndef SWAPCHAIN_SUPPORT_DETAILS_H
 #define SWAPCHAIN_SUPPORT_DETAILS_H
 
