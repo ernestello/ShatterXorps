@@ -1,22 +1,21 @@
 // RenderPass.cpp
-
 #include "RenderPass.h"
 #include <array>
 #include <iostream>
 
-// Initialization: Define RenderPass constructor | RenderPass.cpp | Used by main.cpp - line where RenderPass is instantiated | Creates render pass with color and depth attachments | Constructor - To configure rendering process | Depends on Vulkan device, PhysicalDevice, SwapChain | Moderate computing power | Once at [line 6 - RenderPass.cpp - constructor] | GPU
-RenderPass::RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat)
-    : device(device), physicalDevice(physicalDevice), renderPass(VK_NULL_HANDLE) {
-    createRenderPass(swapChainImageFormat);
+// Constructor implementation
+RenderPass::RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat, bool enableDepth)
+    : device(device), physicalDevice(physicalDevice), renderPass(VK_NULL_HANDLE), depthAttachment(enableDepth) {
+    createRenderPass(swapChainImageFormat, enableDepth);
 }
 
-// Initialization: Define RenderPass destructor | RenderPass.cpp | Used by main.cpp - line where RenderPass is destroyed | Destroys render pass | Destructor - To release render pass resources | Depends on Vulkan device memory | Minimal computing power | Once at [line 12 - RenderPass.cpp - destructor] | GPU
+// Destructor implementation
 RenderPass::~RenderPass() {
-    // Ensure resources are cleaned up
-    destroy(device); // Alternatively, call destroy here
+    // Destructor intentionally left empty.
+    // Destruction is handled explicitly via the destroy() method.
 }
 
-// Initialization: Define render pass destruction function | RenderPass.cpp | Used by destructor and swap chain recreation | Destroys Vulkan render pass | Resource Cleanup - To release GPU resources | Depends on Vulkan device memory | Minimal computing power | Once at [line 17 - RenderPass.cpp - destroy] | GPU
+// Destroy function
 void RenderPass::destroy(VkDevice device) {
     if (renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(device, renderPass, nullptr);
@@ -24,8 +23,8 @@ void RenderPass::destroy(VkDevice device) {
     }
 }
 
-// Initialization: Define render pass creation function | RenderPass.cpp | Used by RenderPass constructor | Configures color and depth attachments, subpasses, and dependencies | Render Pass Configuration - To define rendering steps | Depends on swap chain format and physical device capabilities | Moderate computing power | Once at [line 23 - RenderPass.cpp - createRenderPass] | GPU
-void RenderPass::createRenderPass(VkFormat swapChainImageFormat) {
+// Creates the render pass with optional depth attachment
+void RenderPass::createRenderPass(VkFormat swapChainImageFormat, bool enableDepth) {
     // Color attachment
     VkAttachmentDescription colorAttachment{};
     colorAttachment.format = swapChainImageFormat;
@@ -37,52 +36,65 @@ void RenderPass::createRenderPass(VkFormat swapChainImageFormat) {
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    // Depth attachment
-    VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = findDepthFormat();
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    std::vector<VkAttachmentDescription> attachments;
+    attachments.emplace_back(colorAttachment);
 
-    // Attachment references
+    // Color attachment reference
     VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0; // Attachment index in the attachments array
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    // Depth attachment
     VkAttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1; // Depth attachment is second in the attachments array
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    if (enableDepth) {
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = findDepthFormat();
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        attachments.emplace_back(depthAttachment);
+
+        depthAttachmentRef.attachment = 1; // Depth attachment is second in the attachments array
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
 
     // Subpass
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    if (enableDepth) {
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    }
 
     // Subpass dependencies
-    std::array<VkSubpassDependency, 2> dependencies{};
+    std::vector<VkSubpassDependency> dependencies;
 
-    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].srcAccessMask = 0;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    // Dependency 1
+    VkSubpassDependency dependency1{};
+    dependency1.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency1.dstSubpass = 0;
+    dependency1.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency1.srcAccessMask = 0;
+    dependency1.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency1.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies.emplace_back(dependency1);
 
-    dependencies[1].srcSubpass = 0;
-    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-    // Attachments array
-    std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+    if (enableDepth) {
+        // Dependency 2
+        VkSubpassDependency dependency2{};
+        dependency2.srcSubpass = 0;
+        dependency2.dstSubpass = VK_SUBPASS_EXTERNAL;
+        dependency2.srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        dependency2.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        dependency2.dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        dependency2.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        dependencies.emplace_back(dependency2);
+    }
 
     // Render pass create info
     VkRenderPassCreateInfo renderPassInfo{};
@@ -102,7 +114,7 @@ void RenderPass::createRenderPass(VkFormat swapChainImageFormat) {
     std::cout << "Render pass created successfully." << std::endl;
 }
 
-// Initialization: Define depth format finding function | RenderPass.cpp | Used by createRenderPass | Selects appropriate depth format | Depth Format Identification - To support depth testing | Depends on physical device's supported formats | Minimal computing power | Once at [line 88 - RenderPass.cpp - findDepthFormat] | GPU
+// Finds a suitable depth format
 VkFormat RenderPass::findDepthFormat() {
     return findSupportedFormat(
         { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
@@ -111,8 +123,9 @@ VkFormat RenderPass::findDepthFormat() {
     );
 }
 
-// Initialization: Define supported format finding function | RenderPass.cpp | Used by findDepthFormat | Checks available formats for required features | Supported Format Selection - To ensure depth attachment compatibility | Depends on physical device's format properties | Minimal computing power | Once at [line 93 - RenderPass.cpp - findSupportedFormat] | GPU
-VkFormat RenderPass::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+// Finds a supported format from candidates
+VkFormat RenderPass::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling,
+    VkFormatFeatureFlags features) {
     for (VkFormat format : candidates) {
         VkFormatProperties props;
         vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
@@ -125,5 +138,5 @@ VkFormat RenderPass::findSupportedFormat(const std::vector<VkFormat>& candidates
         }
     }
 
-    throw std::runtime_error("Failed to find a supported format!");
+    throw std::runtime_error("Failed to find supported format!");
 }

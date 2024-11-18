@@ -6,23 +6,32 @@
 #include <stdexcept>
 #include <vector>
 
-// Initialization: Define RenderPass class | RenderPass.h | Used by main.cpp and other classes | Encapsulates Vulkan render pass functionality | Class Definition - To manage render pass resources | Depends on Vulkan device, PhysicalDevice, SwapChain | Moderate computing power | Defined once at [line 4 - RenderPass.h - global scope] | GPU
+// RenderPass class encapsulates Vulkan render pass functionality
 class RenderPass {
 public:
-    RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat);
+    // Constructor: Adds a parameter to enable/disable depth attachment
+    RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat, bool enableDepth = true);
     ~RenderPass();
 
     VkRenderPass getRenderPass() const { return renderPass; }
 
-    void destroy(VkDevice device); // **Added destroy method**
+    // Destroys the render pass
+    void destroy(VkDevice device);
 
 private:
     VkDevice device;
     VkPhysicalDevice physicalDevice;
     VkRenderPass renderPass;
 
-    void createRenderPass(VkFormat swapChainImageFormat);
+    bool depthAttachment; // Flag indicating if depth is enabled
+
+    // Creates the render pass with optional depth
+    void createRenderPass(VkFormat swapChainImageFormat, bool enableDepth);
+
+    // Finds a suitable depth format
     VkFormat findDepthFormat();
+
+    // Finds a supported format from candidates
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 };
 

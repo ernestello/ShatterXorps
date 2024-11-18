@@ -5,7 +5,6 @@
 #include <vulkan/vulkan.h>
 #include "PhysicalDevice.h"
 
-// Initialization: Define Buffer class | Buffer.h | Used by main.cpp and other classes | Encapsulates Vulkan buffer functionality | Class Definition - To manage buffer resources | Depends on Vulkan device and PhysicalDevice | Minimal computing power | Defined once at [line 4 - Buffer.h - global scope] | GPU
 class Buffer {
 public:
     Buffer(VkDevice device, PhysicalDevice& physicalDevice, VkDeviceSize size,

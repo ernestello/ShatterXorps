@@ -1,34 +1,48 @@
 // CommandBuffer.cpp
-
 #include "CommandBuffer.h"
 #include <stdexcept>
 #include <array>
+#include <iostream>
 
-// Initialization: Define CommandBuffer constructor | CommandBuffer.cpp | Used by main.cpp - line where CommandBuffer is instantiated | Allocates command buffers from the pool | Constructor - To prepare command buffers for recording | Depends on Vulkan device and CommandPool | Minimal computing power | Once per command buffer creation at [line 6 - CommandBuffer.cpp - constructor] | CPU
-CommandBuffer::CommandBuffer(VkDevice device, VkCommandPool commandPool, size_t bufferCount)
-    : device(device), commandPool(commandPool), commandBuffers(bufferCount) {
-    createCommandBuffers(bufferCount);
-}
-
-// Initialization: Define CommandBuffer destructor | CommandBuffer.cpp | Used by main.cpp - line where CommandBuffer is destroyed | Frees command buffers | Destructor - To release command buffer resources | Depends on Vulkan device and CommandPool | Minimal computing power | Once per command buffer destruction at [line 12 - CommandBuffer.cpp - destructor] | CPU
-CommandBuffer::~CommandBuffer() {
-    vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-}
-
-// Initialization: Define command buffer creation function | CommandBuffer.cpp | Used by CommandBuffer constructor | Allocates Vulkan command buffers | Command Buffer Allocation - To record rendering commands | Depends on Vulkan device and CommandPool | Minimal computing power | Once per buffer allocation at [line 17 - CommandBuffer.cpp - createCommandBuffers] | CPU
-void CommandBuffer::createCommandBuffers(size_t bufferCount) {
+CommandBuffer::CommandBuffer(VkDevice device, VkCommandPool commandPool, uint32_t count)
+    : device(device), commandPool(commandPool), commandBuffers(count) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = static_cast<uint32_t>(bufferCount);
+    allocInfo.commandBufferCount = count;
 
     if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate command buffers!");
     }
 }
 
-// Initialization: Define command buffer recording function | CommandBuffer.cpp | Used by main.cpp - line where command buffers are recorded | Records rendering commands into each command buffer | Command Recording - To define rendering operations | Depends on RenderPass, SwapChain, GraphicsPipeline, DescriptorSets, VertexBuffer | High computing power | Once per frame at [line 27 - CommandBuffer.cpp - recordCommandBuffers] | CPU, GPU
+CommandBuffer::~CommandBuffer() {
+    if (!commandBuffers.empty()) {
+        vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    }
+}
+
+CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
+    : device(other.device), commandPool(other.commandPool), commandBuffers(std::move(other.commandBuffers)) {
+    other.commandBuffers.clear();
+}
+
+CommandBuffer& CommandBuffer::operator=(CommandBuffer&& other) noexcept {
+    if (this != &other) {
+        if (!commandBuffers.empty()) {
+            vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+        }
+
+        device = other.device;
+        commandPool = other.commandPool;
+        commandBuffers = std::move(other.commandBuffers);
+
+        other.commandBuffers.clear();
+    }
+    return *this;
+}
+
 void CommandBuffer::recordCommandBuffers(
     VkRenderPass renderPass,
     const std::vector<VkFramebuffer>& framebuffers,
@@ -36,11 +50,14 @@ void CommandBuffer::recordCommandBuffers(
     VkExtent2D extent,
     const std::vector<VkDescriptorSet>& descriptorSets,
     VkPipelineLayout pipelineLayout,
-    VkBuffer vertexBuffer
+    VkBuffer vertexBuffer,
+    uint32_t vertexCount // Added parameter
 ) {
     for (size_t i = 0; i < commandBuffers.size(); i++) {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0; // Optional
+        beginInfo.pInheritanceInfo = nullptr; // Optional
 
         if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
             throw std::runtime_error("Failed to begin recording command buffer!");
@@ -54,7 +71,7 @@ void CommandBuffer::recordCommandBuffers(
         renderPassInfo.renderArea.extent = extent;
 
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+        clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
         clearValues[1].depthStencil = { 1.0f, 0 };
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
@@ -64,13 +81,30 @@ void CommandBuffer::recordCommandBuffers(
 
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+        // Set dynamic viewport
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(extent.width);
+        viewport.height = static_cast<float>(extent.height);
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffers[i], 0, 1, &viewport);
+
+        // Set dynamic scissor
+        VkRect2D scissor{};
+        scissor.offset = { 0, 0 };
+        scissor.extent = extent;
+        vkCmdSetScissor(commandBuffers[i], 0, 1, &scissor);
+
+        VkBuffer vertexBuffers[] = { vertexBuffer };
         VkDeviceSize offsets[] = { 0 };
-        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
 
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
             0, 1, &descriptorSets[i], 0, nullptr);
 
-        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+        vkCmdDraw(commandBuffers[i], vertexCount, 1, 0, 0); // Correct number of arguments
 
         vkCmdEndRenderPass(commandBuffers[i]);
 

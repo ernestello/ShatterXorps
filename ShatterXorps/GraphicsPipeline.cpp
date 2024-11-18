@@ -6,26 +6,35 @@
 #include <stdexcept>
 #include <array>
 
-// Initialization: Define GraphicsPipeline constructor | GraphicsPipeline.cpp | Used by main.cpp - line where GraphicsPipeline is instantiated | Creates graphics pipeline with shaders | Constructor - To set up rendering pipeline | Depends on Vulkan device, SwapChain, RenderPass | High computing power | Once at [line 9 - GraphicsPipeline.cpp - constructor] | GPU
+// Constructor
 GraphicsPipeline::GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass)
     : device(device), pipelineLayout(VK_NULL_HANDLE), graphicsPipeline(VK_NULL_HANDLE), descriptorSetLayout(VK_NULL_HANDLE) {
     createGraphicsPipeline(swapChainExtent, renderPass);
 }
 
-// Initialization: Define GraphicsPipeline destructor | GraphicsPipeline.cpp | Used by main.cpp - line where GraphicsPipeline is destroyed | Destroys graphics pipeline and layout | Destructor - To release pipeline resources | Depends on Vulkan device memory | High computing power | Once at [line 15 - GraphicsPipeline.cpp - destructor] | GPU
+// Destructor
 GraphicsPipeline::~GraphicsPipeline() {
+    // Destructor intentionally left empty.
+    // Destruction is handled explicitly via the destroy() method.
+}
+
+// Destroy function
+void GraphicsPipeline::destroy(VkDevice device) {
     if (graphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        graphicsPipeline = VK_NULL_HANDLE;
     }
     if (pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+        pipelineLayout = VK_NULL_HANDLE;
     }
     if (descriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+        descriptorSetLayout = VK_NULL_HANDLE;
     }
 }
 
-// Initialization: Define graphics pipeline creation function | GraphicsPipeline.cpp | Used by GraphicsPipeline constructor | Sets up shader stages, pipeline configurations | Pipeline Setup - To define how vertices are processed and rendered | Depends on shader modules, vertex input, rasterization | High computing power | Once at [line 21 - GraphicsPipeline.cpp - createGraphicsPipeline] | GPU
+// Create Graphics Pipeline with dynamic viewport and scissor
 void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRenderPass renderPass) {
     auto vertShaderCode = readFile("shaders/vert.spv");
     auto fragShaderCode = readFile("shaders/frag.spv");
@@ -61,25 +70,13 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-    // Viewport and Scissor
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(swapChainExtent.width);
-    viewport.height = static_cast<float>(swapChainExtent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = swapChainExtent;
-
+    // Viewport and Scissor will be dynamic, so no need to define them here
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
-    viewportState.pViewports = &viewport;
+    viewportState.pViewports = nullptr; // Dynamic
     viewportState.scissorCount = 1;
-    viewportState.pScissors = &scissor;
+    viewportState.pScissors = nullptr; // Dynamic
 
     // Rasterizer State
     VkPipelineRasterizationStateCreateInfo rasterizer{};
@@ -148,6 +145,17 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
         throw std::runtime_error("Failed to create pipeline layout!");
     }
 
+    // Dynamic States
+    std::vector<VkDynamicState> dynamicStates = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
     // Graphics Pipeline Create Info
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -160,6 +168,7 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     pipelineInfo.pMultisampleState = &multisampling;
     pipelineInfo.pDepthStencilState = &depthStencil;    // Enable depth testing
     pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;         // Add dynamic state
     pipelineInfo.layout = pipelineLayout;
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
@@ -174,11 +183,15 @@ void GraphicsPipeline::createGraphicsPipeline(VkExtent2D swapChainExtent, VkRend
     vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
-// Initialization: Define shader module creation function | GraphicsPipeline.cpp | Used by createGraphicsPipeline | Creates Vulkan shader module from bytecode | Shader Module Setup - To load and compile shaders | Depends on shader bytecode and Vulkan device | Minimal computing power | Once per shader at [line 101 - GraphicsPipeline.cpp - createShaderModule] | GPU
+// Create Shader Module
 VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
+    // Ensure that the data is aligned to 4 bytes and properly cast
+    if (code.size() % 4 != 0) {
+        throw std::runtime_error("Shader code size must be a multiple of 4!");
+    }
     createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
     VkShaderModule shaderModule;
@@ -189,7 +202,7 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& cod
     return shaderModule;
 }
 
-// Initialization: Define file reading function | GraphicsPipeline.cpp | Used by createGraphicsPipeline | Reads shader bytecode from file | File Reading - To load shader binaries | Depends on file system and shader files | Minimal computing power | Once per shader at [line 111 - GraphicsPipeline.cpp - readFile] | CPU
+// Read File
 std::vector<char> GraphicsPipeline::readFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {

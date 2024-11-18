@@ -1,9 +1,11 @@
 // main.cpp
 
 #define GLFW_INCLUDE_VULKAN
+#define GLFW_EXPOSE_NATIVE_WIN32 // Expose native Win32 functions
 #include <GLFW/glfw3.h>
-
-// Initialization: Include standard and third-party libraries | main.cpp | Used by main.cpp - lines where included | Includes necessary libraries for Vulkan and window management | Header Inclusion - to provide necessary functions and classes | Minimal memory usage | Minimal computing power | Once at [line 3 - main.cpp - global scope] | CPU
+#include <GLFW/glfw3native.h> // Include for glfwGetWin32Window
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
 
 #include "VulkanInstance.h"
 #include "PhysicalDevice.h"
@@ -30,24 +32,33 @@
 #include <algorithm>
 #include <sstream>
 
-// Initialization: Define window dimensions | main.cpp | Used by initWindow and other functions | Sets the width and height for the GLFW window | Constant Definition - to define window size | 8 bytes (two uint32_t) | Negligible computing power | Once at [line 20 - main.cpp - global scope] | CPU
+// Window dimensions
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
 
-// Initialization: Define vertex data | main.cpp | Used by main.cpp - vertex buffer creation | Specifies the vertices of the triangle to be rendered | Data Initialization - to provide vertex positions and colors | Depends on vertex count and structure | Minimal computing power | Once at [line 23 - main.cpp - global scope] | CPU
+// Vertex data
 const std::vector<Vertex> vertices = {
     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Vertex 1: position and color
     {{0.5f, 0.5f},  {0.0f, 1.0f, 0.0f}}, // Vertex 2: position and color
     {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}  // Vertex 3: position and color
 };
 
-// Initialization: Define window initialization function | main.cpp | Used by main - main function | Initializes GLFW and creates a Vulkan-compatible window | Function Definition - to encapsulate window setup | Depends on GLFW and Vulkan requirements | Minimal computing power | Once at [line 29 - main.cpp - global scope] | CPU
+// Global flag for framebuffer resize
+bool framebufferResized = false;
+
+// Framebuffer resize callback function
+void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+    framebufferResized = true;
+}
+
+// Function to initialize GLFW window
 GLFWwindow* initWindow() {
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW!");
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // Ensure the window is resizable
 
     GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Window", nullptr, nullptr);
     if (!window) {
@@ -57,165 +68,52 @@ GLFWwindow* initWindow() {
     return window;
 }
 
-// Initialization: Define swap chain recreation function | main.cpp | Used by main - main function | Handles swap chain recreation on window resize or other events | Function Definition - to manage dynamic swap chain | Depends on multiple Vulkan objects | Depends on swap chain support | Minimal to moderate computing power | When triggered by window events at [line 44 - main.cpp - global scope] | CPU, GPU
-void recreateSwapChain(
-    GLFWwindow* window,
-    VkDevice device,
-    PhysicalDevice& physicalDevice,
-    SwapChain& swapChain,
-    RenderPass& renderPass,
-    GraphicsPipeline& graphicsPipeline,
-    std::vector<Buffer>& uniformBuffers,
-    VkDescriptorPool& descriptorPool,
-    Buffer& vertexBuffer,
-    CommandBuffer& commandBuffer,
-    VkCommandPool commandPool
-) {
-    vkDeviceWaitIdle(device);
-
-    swapChain.destroy();
-    renderPass.destroy(device);
-    graphicsPipeline.~GraphicsPipeline();
-
-    swapChain = SwapChain(physicalDevice, device, swapChain.getSurface(), window);
-    renderPass = RenderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
-    graphicsPipeline = GraphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
-
-    swapChain.createFramebuffers(renderPass.getRenderPass());
-
-    // Recreate uniform buffers and descriptor sets
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
-
-    // Destroy old uniform buffers
-    for (auto& uniformBuffer : uniformBuffers) {
-        uniformBuffer.destroy();
-    }
-    uniformBuffers.clear();
-
-    uniformBuffers.reserve(swapChain.getSwapChainImages().size());
-    for (size_t i = 0; i < swapChain.getSwapChainImages().size(); i++) {
-        uniformBuffers.emplace_back(
-            device,
-            physicalDevice,
-            bufferSize,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        );
-    }
-
-    // Recreate descriptor pool and descriptor sets
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(uniformBuffers.size());
-
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = static_cast<uint32_t>(uniformBuffers.size());
-
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor pool!");
-    }
-
-    std::vector<VkDescriptorSet> descriptorSets(uniformBuffers.size());
-
-    std::vector<VkDescriptorSetLayout> layouts(uniformBuffers.size(), graphicsPipeline.getDescriptorSetLayout());
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(uniformBuffers.size());
-    allocInfo.pSetLayouts = layouts.data();
-
-    if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor sets!");
-    }
-
-    for (size_t i = 0; i < uniformBuffers.size(); i++) {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i].getBuffer();
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
-
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-
-        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
-    }
-
-    // Re-record command buffers
-    commandBuffer.recordCommandBuffers(
-        renderPass.getRenderPass(),
-        swapChain.getFramebuffers(),
-        graphicsPipeline.getPipeline(),
-        swapChain.getSwapChainExtent(),
-        descriptorSets,
-        graphicsPipeline.getPipelineLayout(),
-        vertexBuffer.getBuffer()
-    );
-}
-
-// STEP: 0 | Pre-initialized components | FROM - Various initialization steps | Initializes GLFW and sets up the window | Setup - To prepare the environment | Minimal memory | Minimal computing power | Once before main loop at [line 100 - main.cpp - main]
 int main() {
     GLFWwindow* window = initWindow();
 
-    try {
-        // STEP: 1 | Create Vulkan instance | FROM - main.cpp/function initWindow | Initializes the Vulkan API instance | Initialization - To set up Vulkan context | Depends on VulkanInstance class memory | Minimal computing power | Once at [line 107 - main.cpp - main] | GPU
+    // Register the framebuffer resize callback
+    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
+    try {
+        // STEP: 1 | Create Vulkan instance
         std::vector<const char*> extensions;
         VulkanInstance vulkanInstance("My Vulkan App", VK_MAKE_VERSION(1, 0, 0), extensions);
         VkInstance instance = vulkanInstance.getInstance();
         std::cout << "Vulkan instance created successfully." << std::endl;
 
-        // STEP: 2 | Create Vulkan surface | FROM - main.cpp/line 107/function main | Creates a rendering surface for Vulkan | Surface Creation - To enable rendering to window | Depends on GLFW and Vulkan instance memory | Minimal computing power | Once at [line 112 - main.cpp - main] | GPU
-
+        // STEP: 2 | Create Vulkan surface
         VkSurfaceKHR surface;
         if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create window surface!");
         }
         std::cout << "Window surface created successfully." << std::endl;
 
-        // STEP: 3 | Select physical device and create logical device | FROM - PhysicalDevice.cpp/line X/function constructor | Chooses GPU and sets up logical device | Device Selection - To utilize GPU capabilities | Depends on PhysicalDevice class memory | Moderate computing power | Once at [line 119 - main.cpp - main] | GPU
-
+        // STEP: 3 | Select physical device and create logical device
         PhysicalDevice physicalDevice(instance, surface);
         VkDevice device = physicalDevice.getDevice();
         std::cout << "Physical and logical devices created successfully." << std::endl;
 
-        // STEP: 4 | Create swap chain | FROM - SwapChain.cpp/line X/function constructor | Sets up swap chain for image presentation | Swap Chain Setup - To handle image buffers | Depends on SwapChain class memory | Moderate computing power | Once at [line 124 - main.cpp - main] | GPU
-
+        // STEP: 4 | Create swap chain
         SwapChain swapChain(physicalDevice, device, surface, window);
         std::cout << "Swap chain created successfully." << std::endl;
 
-        // STEP: 5 | Create render pass | FROM - RenderPass.cpp/line X/function constructor | Configures render pass for rendering pipeline | Render Pass Configuration - To define rendering steps | Depends on RenderPass class memory | Moderate computing power | Once at [line 129 - main.cpp - main] | GPU
-
+        // STEP: 5 | Create render pass
         RenderPass renderPass(device, physicalDevice.getPhysicalDevice(), swapChain.getSwapChainImageFormat());
         std::cout << "Render pass created successfully." << std::endl;
 
-        // STEP: 6 | Create graphics pipeline | FROM - GraphicsPipeline.cpp/line X/function constructor | Sets up the graphics pipeline | Pipeline Setup - To define rendering operations | Depends on GraphicsPipeline class memory | High computing power | Once at [line 134 - main.cpp - main] | GPU
-
+        // STEP: 6 | Create graphics pipeline
         GraphicsPipeline graphicsPipeline(device, swapChain.getSwapChainExtent(), renderPass.getRenderPass());
         std::cout << "Graphics pipeline created successfully." << std::endl;
 
-        // STEP: 7 | Create framebuffers | FROM - SwapChain.cpp/line X/function createFramebuffers | Establishes framebuffers for rendering | Framebuffer Creation - To hold rendered images | Depends on SwapChain and RenderPass memory | Moderate computing power | Once at [line 139 - main.cpp - main] | GPU
-
+        // STEP: 7 | Create framebuffers
         swapChain.createFramebuffers(renderPass.getRenderPass());
         std::cout << "Framebuffers created successfully." << std::endl;
 
-        // STEP: 8 | Create command pool | FROM - CommandPool.cpp/line X/function constructor | Initializes command pool for buffer allocations | Command Pool Setup - To manage command buffers | Depends on CommandPool class memory | Minimal computing power | Once at [line 144 - main.cpp - main] | CPU
-
+        // STEP: 8 | Create command pool
         CommandPool commandPool(device, physicalDevice.getGraphicsQueueFamilyIndex());
         std::cout << "Command pool created successfully." << std::endl;
 
-        // STEP: 9 | Create vertex buffer | FROM - Buffer.cpp/line X/function constructor | Allocates and binds vertex buffer memory | Vertex Buffer Creation - To store vertex data | Depends on Buffer class memory | Minimal computing power | Once at [line 149 - main.cpp - main] | GPU
-
+        // STEP: 9 | Create vertex buffer
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
         Buffer vertexBuffer(
             device,
@@ -225,17 +123,15 @@ int main() {
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
 
-        // STEP: 9.1 | Map memory and copy vertex data | FROM - main.cpp/line 154/function main | Maps memory and copies vertex data to buffer | Memory Mapping - To transfer data to GPU | Depends on Buffer memory | Minimal computing power | Once at [line 154 - main.cpp - main] | CPU
-
+        // STEP: 9.1 | Map memory and copy vertex data
         void* data;
         vkMapMemory(device, vertexBuffer.getMemory(), 0, bufferSize, 0, &data);
-        memcpy(data, vertices.data(), (size_t)bufferSize);
+        memcpy(data, vertices.data(), static_cast<size_t>(bufferSize));
         vkUnmapMemory(device, vertexBuffer.getMemory());
 
         std::cout << "Vertex buffer created successfully." << std::endl;
 
-        // STEP: 10 | Create uniform buffers | FROM - Buffer.cpp/line X/function constructor | Allocates uniform buffers for shader data | Uniform Buffer Creation - To store transformation matrices | Depends on Buffer class memory | Minimal computing power | Once at [line 160 - main.cpp - main] | GPU
-
+        // STEP: 10 | Create uniform buffers
         VkDeviceSize uniformBufferSize = sizeof(UniformBufferObject);
         std::vector<Buffer> uniformBuffers;
         uniformBuffers.reserve(swapChain.getSwapChainImages().size());
@@ -251,38 +147,35 @@ int main() {
         }
         std::cout << "Uniform buffers created successfully." << std::endl;
 
-
-        // STEP: 11 | Create descriptor pool | FROM - main.cpp/line 170/function main | Initializes descriptor pool for shader resources | Descriptor Pool Setup - To manage descriptor sets | Depends on Vulkan device memory | Minimal computing power | Once at [line 170 - main.cpp - main] | GPU
-
+        // STEP: 11 | Create descriptor pool
         VkDescriptorPool descriptorPool;
 
         VkDescriptorPoolSize poolSize{};
         poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSize.descriptorCount = static_cast<uint32_t>(uniformBuffers.size());
 
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
-        poolInfo.maxSets = static_cast<uint32_t>(uniformBuffers.size());
+        VkDescriptorPoolCreateInfo poolInfoDescriptor{};
+        poolInfoDescriptor.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfoDescriptor.poolSizeCount = 1;
+        poolInfoDescriptor.pPoolSizes = &poolSize;
+        poolInfoDescriptor.maxSets = static_cast<uint32_t>(uniformBuffers.size());
 
-        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        if (vkCreateDescriptorPool(device, &poolInfoDescriptor, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create descriptor pool!");
         }
         std::cout << "Descriptor pool created successfully." << std::endl;
 
-        // STEP: 12 | Allocate descriptor sets | FROM - main.cpp/line 178/function main | Allocates descriptor sets from the pool | Descriptor Set Allocation - To bind uniform buffers to shaders | Depends on DescriptorPool and GraphicsPipeline memory | Minimal computing power | Once at [line 178 - main.cpp - main] | GPU
-
+        // STEP: 12 | Allocate descriptor sets
         std::vector<VkDescriptorSet> descriptorSets(uniformBuffers.size());
 
         std::vector<VkDescriptorSetLayout> layouts(uniformBuffers.size(), graphicsPipeline.getDescriptorSetLayout());
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool;
-        allocInfo.descriptorSetCount = static_cast<uint32_t>(uniformBuffers.size());
-        allocInfo.pSetLayouts = layouts.data();
+        VkDescriptorSetAllocateInfo allocInfoDescriptorSet{};
+        allocInfoDescriptorSet.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfoDescriptorSet.descriptorPool = descriptorPool;
+        allocInfoDescriptorSet.descriptorSetCount = static_cast<uint32_t>(uniformBuffers.size());
+        allocInfoDescriptorSet.pSetLayouts = layouts.data();
 
-        if (vkAllocateDescriptorSets(device, &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+        if (vkAllocateDescriptorSets(device, &allocInfoDescriptorSet, descriptorSets.data()) != VK_SUCCESS) {
             throw std::runtime_error("Failed to allocate descriptor sets!");
         }
 
@@ -305,26 +198,25 @@ int main() {
         }
         std::cout << "Descriptor sets allocated and updated successfully." << std::endl;
 
-        // STEP: 13 | Create command buffers | FROM - CommandBuffer.cpp/line X/function constructor | Initializes command buffers for rendering commands | Command Buffer Creation - To record rendering commands | Depends on CommandBuffer class memory | Minimal computing power | Once at [line 193 - main.cpp - main] | CPU
-
+        // STEP: 13 | Create command buffers
         CommandBuffer commandBufferObj(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
         std::cout << "Command buffers created successfully." << std::endl;
 
-        // STEP: 14 | Record command buffers | FROM - CommandBuffer.cpp/line X/function recordCommandBuffers | Records rendering commands into command buffers | Command Recording - To define rendering steps | Depends on CommandBuffer, RenderPass, SwapChain, GraphicsPipeline, DescriptorSets, VertexBuffer | High computing power | Once at [line 198 - main.cpp - main] | CPU, GPU
-
+        // STEP: 14 | Record command buffers
+        // Pass vertexCount as parameter
         commandBufferObj.recordCommandBuffers(
             renderPass.getRenderPass(),
-            swapChain.getFramebuffers(),
+            swapChain.getSwapChainFramebuffers(),
             graphicsPipeline.getPipeline(),
             swapChain.getSwapChainExtent(),
             descriptorSets,
             graphicsPipeline.getPipelineLayout(),
-            vertexBuffer.getBuffer()
+            vertexBuffer.getBuffer(),
+            static_cast<uint32_t>(vertices.size()) // Pass vertex count
         );
         std::cout << "Command buffers recorded successfully." << std::endl;
 
-        // STEP: 15 | Create synchronization objects | FROM - main.cpp/line X/function main | Sets up semaphores and fences for frame synchronization | Synchronization Setup - To manage rendering and presentation synchronization | Depends on Vulkan device memory | Minimal computing power | Once at [line 205 - main.cpp - main] | CPU
-
+        // STEP: 15 | Create synchronization objects
         VkSemaphore imageAvailableSemaphore;
         VkSemaphore renderFinishedSemaphore;
         VkFence inFlightFence;
@@ -356,16 +248,83 @@ int main() {
         auto fpsStartTime = std::chrono::high_resolution_clock::now();
         int frameCount = 0;
 
+        // Initialize DWM thumbnail
+        HWND hwnd = glfwGetWin32Window(window);
+        HTHUMBNAIL thumbnail = nullptr;
+        HRESULT hr = DwmRegisterThumbnail(GetDesktopWindow(), hwnd, &thumbnail);
+        if (FAILED(hr)) {
+            std::cerr << "Failed to register DWM thumbnail!" << std::endl;
+            // Handle error or proceed without thumbnail
+        }
+        else {
+            DWM_THUMBNAIL_PROPERTIES props = {};
+            props.dwFlags = DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY;
+            props.fVisible = TRUE;
+            props.opacity = 255;
+            props.rcDestination = { 0, 0, 200, 150 }; // Adjust as needed
+
+            hr = DwmUpdateThumbnailProperties(thumbnail, &props);
+            if (FAILED(hr)) {
+                std::cerr << "Failed to update DWM thumbnail properties!" << std::endl;
+                // Handle error or proceed without thumbnail
+            }
+        }
+
+        // STEP: 16 | Create offscreen command buffer
+        CommandBuffer offscreenCommandBufferObj(device, commandPool.getCommandPool(), 1);
+        VkCommandBuffer offscreenCommandBuffer = offscreenCommandBufferObj.getCommandBuffers()[0];
+
         // Main loop
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
 
-            // Handle window resize
-            if (glfwGetWindowAttrib(window, GLFW_ICONIFIED)) {
-                // If window is minimized, wait until it is restored
-                while (glfwGetWindowAttrib(window, GLFW_ICONIFIED)) {
-                    glfwWaitEvents();
+            // Check if framebuffer was resized
+            if (framebufferResized) {
+                // Wait for the device to be idle before destroying resources
+                vkDeviceWaitIdle(device);
+
+                // Check if window is minimized
+                int width = 0, height = 0;
+                glfwGetFramebufferSize(window, &width, &height);
+                if (width == 0 || height == 0) {
+                    // Window is minimized, do not recreate swapchain yet
+                    framebufferResized = false;
+                    continue;
                 }
+
+                // Destroy existing swap chain resources
+                swapChain.destroy();
+
+                // Recreate swap chain
+                swapChain = SwapChain(physicalDevice, device, surface, window);
+
+                // Recreate framebuffers
+                swapChain.createFramebuffers(renderPass.getRenderPass());
+
+                // Recreate command buffers
+                commandBufferObj = CommandBuffer(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
+                commandBufferObj.recordCommandBuffers(
+                    renderPass.getRenderPass(),
+                    swapChain.getSwapChainFramebuffers(),
+                    graphicsPipeline.getPipeline(),
+                    swapChain.getSwapChainExtent(),
+                    descriptorSets,
+                    graphicsPipeline.getPipelineLayout(),
+                    vertexBuffer.getBuffer(),
+                    static_cast<uint32_t>(vertices.size())
+                );
+
+                framebufferResized = false;
+            }
+
+            // Get current window size
+            int width = 0, height = 0;
+            glfwGetFramebufferSize(window, &width, &height);
+
+            // If the window is minimized, wait until it's restored
+            if (width == 0 || height == 0) {
+                glfwWaitEvents(); // Wait for events (like window restore)
+                continue;
             }
 
             // 1. Wait for the previous frame to finish
@@ -374,9 +333,23 @@ int main() {
             // 2. Acquire the next image from the swap chain
             uint32_t imageIndex;
             VkResult result = vkAcquireNextImageKHR(device, swapChain.getSwapChain(), UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
-            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
                 // Recreate the swap chain
-                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool.getCommandPool());
+                swapChain.destroy();
+                swapChain = SwapChain(physicalDevice, device, surface, window);
+                swapChain.createFramebuffers(renderPass.getRenderPass());
+                commandBufferObj = CommandBuffer(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
+                commandBufferObj.recordCommandBuffers(
+                    renderPass.getRenderPass(),
+                    swapChain.getSwapChainFramebuffers(),
+                    graphicsPipeline.getPipeline(),
+                    swapChain.getSwapChainExtent(),
+                    descriptorSets,
+                    graphicsPipeline.getPipelineLayout(),
+                    vertexBuffer.getBuffer(),
+                    static_cast<uint32_t>(vertices.size())
+                );
+                framebufferResized = false;
                 continue;
             }
             else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -445,10 +418,23 @@ int main() {
             presentInfo.pImageIndices = &imageIndex;
 
             result = vkQueuePresentKHR(presentQueue, &presentInfo);
-            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+            if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
                 // Recreate the swap chain
-                recreateSwapChain(window, device, physicalDevice, swapChain, renderPass, graphicsPipeline, uniformBuffers, descriptorPool, vertexBuffer, commandBufferObj, commandPool.getCommandPool());
-                continue;
+                swapChain.destroy();
+                swapChain = SwapChain(physicalDevice, device, surface, window);
+                swapChain.createFramebuffers(renderPass.getRenderPass());
+                commandBufferObj = CommandBuffer(device, commandPool.getCommandPool(), swapChain.getSwapChainImages().size());
+                commandBufferObj.recordCommandBuffers(
+                    renderPass.getRenderPass(),
+                    swapChain.getSwapChainFramebuffers(),
+                    graphicsPipeline.getPipeline(),
+                    swapChain.getSwapChainExtent(),
+                    descriptorSets,
+                    graphicsPipeline.getPipelineLayout(),
+                    vertexBuffer.getBuffer(),
+                    static_cast<uint32_t>(vertices.size())
+                );
+                framebufferResized = false;
             }
             else if (result != VK_SUCCESS) {
                 throw std::runtime_error("Failed to present swap chain image!");
@@ -475,8 +461,80 @@ int main() {
                 fpsStartTime = fpsCurrentTime;
                 frameCount = 0;
             }
+
+            // Render to the offscreen thumbnail if DWM thumbnail is registered
+            if (thumbnail) {
+                // Begin command buffer for offscreen rendering
+                VkCommandBufferBeginInfo beginInfo{};
+                beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+                if (vkBeginCommandBuffer(offscreenCommandBuffer, &beginInfo) != VK_SUCCESS) {
+                    throw std::runtime_error("Failed to begin recording offscreen command buffer!");
+                }
+
+                VkRenderPassBeginInfo renderPassInfo{};
+                renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                renderPassInfo.renderPass = swapChain.getOffscreenRenderPass();
+                renderPassInfo.framebuffer = swapChain.getOffscreenFramebuffer();
+                renderPassInfo.renderArea.offset = { 0, 0 };
+                renderPassInfo.renderArea.extent = { 200, 150 };
+
+                std::array<VkClearValue, 1> clearValues{};
+                clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+
+                renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+                renderPassInfo.pClearValues = clearValues.data();
+
+                vkCmdBeginRenderPass(offscreenCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                vkCmdBindPipeline(offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.getPipeline());
+
+                VkDeviceSize offsetsOffscreen[] = { 0 };
+
+                VkBuffer currentVertexBuffer = vertexBuffer.getBuffer();
+                vkCmdBindVertexBuffers(offscreenCommandBuffer, 0, 1, &currentVertexBuffer, offsetsOffscreen);
+
+                vkCmdBindDescriptorSets(offscreenCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.getPipelineLayout(),
+                    0, 1, &descriptorSets[imageIndex], 0, nullptr);
+
+                // Set dynamic viewport and scissor for offscreen rendering
+                VkViewport offscreenViewport{};
+                offscreenViewport.x = 0.0f;
+                offscreenViewport.y = 0.0f;
+                offscreenViewport.width = 200.0f;
+                offscreenViewport.height = 150.0f;
+                offscreenViewport.minDepth = 0.0f;
+                offscreenViewport.maxDepth = 1.0f;
+                vkCmdSetViewport(offscreenCommandBuffer, 0, 1, &offscreenViewport);
+
+                VkRect2D offscreenScissor{};
+                offscreenScissor.offset = { 0, 0 };
+                offscreenScissor.extent = { 200, 150 };
+                vkCmdSetScissor(offscreenCommandBuffer, 0, 1, &offscreenScissor);
+
+                vkCmdDraw(offscreenCommandBuffer, 3, 1, 0, 0);
+
+                vkCmdEndRenderPass(offscreenCommandBuffer);
+
+                if (vkEndCommandBuffer(offscreenCommandBuffer) != VK_SUCCESS) {
+                    throw std::runtime_error("Failed to record offscreen command buffer!");
+                }
+
+                // Submit offscreen command buffer
+                VkSubmitInfo offscreenSubmitInfo{};
+                offscreenSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+                offscreenSubmitInfo.commandBufferCount = 1;
+                offscreenSubmitInfo.pCommandBuffers = &offscreenCommandBuffer;
+
+                if (vkQueueSubmit(graphicsQueue, 1, &offscreenSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+                    throw std::runtime_error("Failed to submit offscreen command buffer!");
+                }
+
+                // Optionally, synchronize and copy the offscreen image to a shared surface for DWM
+                // This requires advanced Vulkan techniques and Windows-specific interop
+            }
         }
 
+        // Wait for device to finish operations before cleanup
         vkDeviceWaitIdle(device);
         std::cout << "Device idle. Cleaning up resources..." << std::endl;
 
@@ -496,9 +554,10 @@ int main() {
 
         // Cleanup swap chain and related resources
         swapChain.destroy();
-        renderPass.~RenderPass();
-        graphicsPipeline.~GraphicsPipeline();
-        commandPool.~CommandPool();
+        renderPass.destroy(device);
+        graphicsPipeline.destroy(device);
+        // No need to manually call the destructor for CommandPool
+        // It will be destroyed automatically when going out of scope
         std::cout << "Swap chain and related resources cleaned up." << std::endl;
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -509,7 +568,10 @@ int main() {
     }
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
-        glfwDestroyWindow(window);
+        // Ensure resources are cleaned up even in case of exceptions
+        if (window) {
+            glfwDestroyWindow(window);
+        }
         glfwTerminate();
         return EXIT_FAILURE;
     }
