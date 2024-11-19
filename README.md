@@ -95,11 +95,6 @@ Before you begin, you need to install the Vulkan Software Development Kit (SDK),
    - To ensure your executable can find `vulkan-1.dll` at runtime, you can copy it to your project's output directory.
    - Alternatively, make sure the Vulkan SDK's `Bin` directory is in your system's `PATH`.
 
-## 3. **Troubleshooting Tips**
-
-- **Missing `vulkan-1.dll`:**
-  - Ensure the Vulkan SDK's `Bin` directory is in your system `PATH`, or copy `vulkan-1.dll` to your project's output directory.
-
 iWillHelp - and ofc I will:
 
 ## Troubleshooting
