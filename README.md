@@ -141,6 +141,7 @@ iWillHelp - and ofc I will:
     $(VULKAN_SDK)\Include
 6  - Confirm Environment Variables
     Open a Command Prompt and run:
+
     echo %VULKAN_SDK%
     It should display the path to your Vulkan SDK installation (e.g., C:\VulkanSDK\1.x.x.x).
     Ensure PATH Includes Vulkan Bin:
