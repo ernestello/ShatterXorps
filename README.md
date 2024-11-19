@@ -5,8 +5,10 @@ Posting the repository and opening a project from it in Visual Studio should wor
 
 Project Map:
 
-CTRL + F > Search for: tutorialEnd - skips the Full tutorial on how to install Vulkan and initialize Visual Studio for it.
+CTRL + F > Search for: tutorialEnd - skips the Full tutorial on how to install Vulkan and initialize Visual Studio for it
+
 CTRL + F > Search for: iWillHelp - some throubleshooting with project initialization
+
 CTRL + F > Search for: theLegacy - history of the project
 
 FULL TUTORIAL:
