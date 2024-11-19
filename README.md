@@ -100,6 +100,7 @@ iWillHelp - and ofc I will:
 ## Troubleshooting
  
 1  - Install the Vulkan SDK from [LunarG](https://vulkan.lunarg.com/sdk/home).
+
 2  - Change Your Project's Target Platform to the same of Vulkan's SDK library
 
     VULKAN_SDK = C:\VulkanSDK\<version>
