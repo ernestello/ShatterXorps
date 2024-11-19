@@ -11,7 +11,7 @@ CTRL + F > Search for: iWillHelp - some throubleshooting with project initializa
 
 CTRL + F > Search for: theLegacy - history of the project
 
-FULL TUTORIAL:
+# FULL TUTORIAL:
 
 This repository contains all necessary files to start Vulkan development with Visual Studio. The project already includes pre-configured Visual Studio files and Vulkan headers and classes within the `vulkan` folder. The only requirement is configuring your path variables in Visual Studio.
 
