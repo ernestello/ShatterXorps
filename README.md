@@ -113,10 +113,11 @@ iWillHelp - and ofc I will:
 ## Troubleshooting
  
 1  - Install the Vulkan SDK from [LunarG](https://vulkan.lunarg.com/sdk/home).
-2  - Add the SDK path to your system's environment variables:
-3  - Change Your Project's Target Platform to the same of Vulkan's SDK library
+2  - Change Your Project's Target Platform to the same of Vulkan's SDK library
+
     VULKAN_SDK = C:\VulkanSDK\<version>
-4  - Verify and Configure Linker Settings:
+3  - Verify and Configure Linker Settings:
+
     a. Include Vulkan Libraries
     Navigate to Linker Input:
     
@@ -132,14 +133,14 @@ iWillHelp - and ofc I will:
     In the Additional Library Directories field, ensure the Vulkan SDK's Lib directory is included:
     $(VULKAN_SDK)\Lib
     Note: $(VULKAN_SDK) is an environment variable set by the Vulkan SDK installer. It typically points to something like C:\VulkanSDK\1.x.x.x.
-5  - Ensure Correct Include Directories
+4  - Ensure Correct Include Directories
       Navigate to C/C++ General Settings:
       
     In the Project Properties, go to:
     Configuration Properties > C/C++ > General
     In the Additional Include Directories field, ensure the Vulkan SDK's Include directory is added:
     $(VULKAN_SDK)\Include
-6  - Confirm Environment Variables
+5  - Confirm Environment Variables
     Open a Command Prompt and run:
 
     echo %VULKAN_SDK%
