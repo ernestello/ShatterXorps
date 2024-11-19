@@ -95,14 +95,6 @@ Before you begin, you need to install the Vulkan Software Development Kit (SDK),
    - To ensure your executable can find `vulkan-1.dll` at runtime, you can copy it to your project's output directory.
    - Alternatively, make sure the Vulkan SDK's `Bin` directory is in your system's `PATH`.
 
-### **Resources for Learning Vulkan:**
-
-- **Official Vulkan Documentation:** [Khronos Vulkan](https://www.khronos.org/vulkan/)
-- **Vulkan Tutorial:** [Vulkan Tutorial](https://vulkan-tutorial.com/) – A step-by-step guide to learning Vulkan.
-- **Books:**
-  - *Vulkan Programming Guide* by Graham Sellers, John Kessenich, and Dave Shreiner.
-  - *Vulkan Cookbook* by Pawel Lapinski.
-
 ## 3. **Troubleshooting Tips**
 
 - **Missing `vulkan-1.dll`:**
