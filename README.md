@@ -3,7 +3,7 @@
 
 Posting the repository and opening a project from it in Visual Studio should work
 
-Project Map:
+## Project Map:
 
 CTRL + F > Search for: tutorialEnd - skips the Full tutorial on how to install Vulkan and initialize Visual Studio for it
 
