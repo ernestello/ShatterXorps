@@ -103,7 +103,7 @@ Before you begin, you need to install the Vulkan Software Development Kit (SDK),
   - *Vulkan Programming Guide* by Graham Sellers, John Kessenich, and Dave Shreiner.
   - *Vulkan Cookbook* by Pawel Lapinski.
 
-## 5. **Troubleshooting Tips**
+## 3. **Troubleshooting Tips**
 
 - **Missing `vulkan-1.dll`:**
   - Ensure the Vulkan SDK's `Bin` directory is in your system `PATH`, or copy `vulkan-1.dll` to your project's output directory.
