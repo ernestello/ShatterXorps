@@ -1,12 +1,13 @@
 
 # ShatterXorps - Vulkan Setup for Visual Studio
 
-POSTING THE REPOSITORY AND OPENING A PROJECT FROM IT SHOULD WORK
-(to skip full tutorial > CTRL + F > Search for: tutorialEnd)
-...but wait, I posted the repository and now I get errors? > CTRL + F > Search for: iWillHelp
-tho you might be more curious of how this project came to be? CTRL + F > Search for: theLegacy
+Posting the repository and opening a project from it in Visual Studio should work
 
-but just in case...
+Project Map
+
+CTRL + F > Search for: tutorialEnd - skips the Full tutorial on how to install Vulkan and initialize Visual Studio for it.
+CTRL + F > Search for: iWillHelp - some throubleshooting with project initialization
+CTRL + F > Search for: theLegacy - history of the project
 
 FULL TUTORIAL:
 This repository contains all necessary files to start Vulkan development with Visual Studio. The project already includes pre-configured Visual Studio files and Vulkan headers and classes within the `vulkan` folder. The only requirement is configuring your path variables in Visual Studio.
@@ -162,7 +163,7 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 ```
 
-theLegacy - relevant releases that I decide to add as a little history
+theLegacy
 2024-10-29 - Triangle 2D - not on Github
 2024-11-10 - Triangle 3D RGB - not on Gitub
 2024-11-17 - 1st Github conmit - and some code optimizations
