@@ -21,6 +21,7 @@ This repository contains all necessary files to start Vulkan development with Vi
 1. A Windows PC with Visual Studio installed (2019 or later recommended).
 2. A GPU that supports Vulkan (check compatibility (https://vulkan.lunarg.com/)).
 3. Vulkan SDK installed for system-wide Vulkan runtime support. Download it (https://vulkan.lunarg.com/sdk/home).
+4. GLFW
 
 ## Project Structure
 
@@ -76,6 +77,7 @@ Before you begin, you need to install the Vulkan Software Development Kit (SDK),
    - Find `Additional Include Directories` and add the Vulkan include path:
      ```
      $(VULKAN_SDK)\Include
+     C:\pathtoglfw\glfw\include
      ```
      *Note: `$(VULKAN_SDK)` is an environment variable set by the Vulkan SDK installer.*
 
@@ -84,6 +86,7 @@ Before you begin, you need to install the Vulkan Software Development Kit (SDK),
    - Find `Additional Library Directories` and add:
      ```
      $(VULKAN_SDK)\Lib
+     C:\pathtoglfw\glfw\include
      ```
    - Then, go to `Configuration Properties` > `Linker` > `Input`.
    - Find `Additional Dependencies` and add:
