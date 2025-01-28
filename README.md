@@ -15,13 +15,19 @@ CTRL + F > Search for: theLegacy - history of the project
 
 This repository contains all necessary files to start Vulkan development with Visual Studio. The project already includes pre-configured Visual Studio files and Vulkan headers and classes within the `vulkan` folder. The only requirement is configuring your path variables in Visual Studio.
 
+There are different ways to tackle the installation of GLFW, using precompiled files, terminal install, the same as there are many different ways to install this project.
+
+Using a Terminal, even doing this on a Linux yet in this tutorial I decided to tackle a method of using Visual Studio, since it's the most convenient project tool for me and it's free, when building something on a scale of an engine, it's more convenient in my opinion.
+
+Feel free to be creative with installation methods, basically, you need to build ShatterXorps.sln, that's all, and you receive the executable of the engine. :)
+
 ---
 
 ## Prerequisites
 1. A Windows PC with Visual Studio installed (2019 or later recommended).
 2. A GPU that supports Vulkan (check compatibility (https://vulkan.lunarg.com/)).
 3. Vulkan SDK installed for system-wide Vulkan runtime support. Download it (https://vulkan.lunarg.com/sdk/home).
-4. GLFW
+4. GLFW.
 
 ## Project Structure
 
