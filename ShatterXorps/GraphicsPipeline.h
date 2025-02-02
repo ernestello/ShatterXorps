@@ -1,4 +1,3 @@
-// GraphicsPipeline.h
 #ifndef GRAPHICS_PIPELINE_H
 #define GRAPHICS_PIPELINE_H
 
@@ -6,26 +5,32 @@
 #include <vector>
 #include <string>
 
-// Forward declaration
-struct Vertex;
-
 class GraphicsPipeline {
 public:
     GraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass);
     ~GraphicsPipeline();
 
+    void destroy(VkDevice device);
+
     VkPipeline getPipeline() const { return graphicsPipeline; }
     VkPipelineLayout getPipelineLayout() const { return pipelineLayout; }
-    VkDescriptorSetLayout getDescriptorSetLayout() const { return descriptorSetLayout; }
 
-    // Destroys the graphics pipeline and related resources
-    void destroy(VkDevice device);
+    // set=0 -> UBO layout (camera + light)
+    VkDescriptorSetLayout getDescriptorSetLayoutUBO() const { return descriptorSetLayoutUBO; }
+
+    // set=1 -> Sampler layout (PixelTracer at binding=0, ShadowMap at binding=1)
+    VkDescriptorSetLayout getDescriptorSetLayoutSampler() const { return descriptorSetLayoutSampler; }
 
 private:
     VkDevice device;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
-    VkDescriptorSetLayout descriptorSetLayout;
+
+    // set=0 layout
+    VkDescriptorSetLayout descriptorSetLayoutUBO;
+
+    // set=1 layout
+    VkDescriptorSetLayout descriptorSetLayoutSampler;
 
     void createGraphicsPipeline(VkExtent2D swapChainExtent, VkRenderPass renderPass);
     VkShaderModule createShaderModule(const std::vector<char>& code);

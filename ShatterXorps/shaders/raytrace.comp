@@ -1,0 +1,147 @@
+#version 460
+
+// -----------------------------------------------
+// One workgroup = 8x8 threads
+// -----------------------------------------------
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// --------------------------------------------------
+// Uniform buffer #1: Camera data (binding=0)
+// --------------------------------------------------
+layout(set = 0, binding = 0, std140) uniform CameraData {
+    vec3  cameraPos;
+    // Optional example extra data:
+    mat4  invProjection;
+    mat4  invView;
+    vec2  screenSize;
+} camera;
+
+// --------------------------------------------------
+// Uniform buffer #2: Scene data (binding=1)
+// --------------------------------------------------
+layout(set = 0, binding = 1, std140) uniform SceneData {
+    vec3  lightDir;
+    vec3  lightColor;
+} scene;
+
+// --------------------------------------------------
+// Storage image at binding=2
+// We'll write final color to outImage
+// --------------------------------------------------
+layout(set = 0, binding = 2, rgba32f) uniform image2D outImage;
+
+// --------------------------------------------------
+// Simple Ray & Intersection
+// --------------------------------------------------
+struct Ray {
+    vec3 origin;
+    vec3 dir;
+};
+
+struct Intersection {
+    bool hit;
+    float t;
+    vec3 position;
+    vec3 normal;
+};
+
+// Intersect a simple cube at [(-1,-1,4) .. (1,1,6)]
+Intersection intersectCube(Ray ray)
+{
+    vec3 minBound = vec3(-1.0, -1.0, 4.0);
+    vec3 maxBound = vec3( 1.0,  1.0, 6.0);
+
+    float tMin = 0.0;
+    float tMax = 1e6;
+
+    for (int i = 0; i < 3; i++) {
+        if (abs(ray.dir[i]) < 1e-6) {
+            if (ray.origin[i] < minBound[i] || ray.origin[i] > maxBound[i]) {
+                return Intersection(false, 0.0, vec3(0), vec3(0));
+            }
+        } else {
+            float ood = 1.0 / ray.dir[i];
+            float t1 = (minBound[i] - ray.origin[i]) * ood;
+            float t2 = (maxBound[i] - ray.origin[i]) * ood;
+            if (t1 > t2) {
+                float tmp = t1; t1 = t2; t2 = tmp;
+            }
+            tMin = max(tMin, t1);
+            tMax = min(tMax, t2);
+            if (tMin > tMax) {
+                return Intersection(false, 0.0, vec3(0), vec3(0));
+            }
+        }
+    }
+
+    float tHit = (tMin > 0.0) ? tMin : tMax;
+    vec3 hitPos = ray.origin + tHit * ray.dir;
+
+    // Approximate normal
+    vec3 center = (minBound + maxBound) * 0.5;
+    vec3 local = hitPos - center;
+    vec3 normal = vec3(0.0);
+
+    float maxAxis = max(max(abs(local.x), abs(local.y)), abs(local.z));
+    if (maxAxis == abs(local.x)) normal.x = sign(local.x);
+    else if (maxAxis == abs(local.y)) normal.y = sign(local.y);
+    else normal.z = sign(local.z);
+
+    return Intersection(true, tHit, hitPos, normalize(normal));
+}
+
+// Quick shadow test: re-use the same bounding box
+bool isInShadow(vec3 point, vec3 lightDir)
+{
+    Ray sray;
+    sray.origin = point + 0.001 * lightDir;
+    sray.dir    = lightDir;
+
+    Intersection isect = intersectCube(sray);
+    if (isect.hit && isect.t > 0.0 && isect.t < 1e6) {
+        return true;
+    }
+    return false;
+}
+
+// -----------------------------------------------------------
+// MAIN COMPUTE ENTRY
+// -----------------------------------------------------------
+void main()
+{
+    ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+
+    // If you actually use screenSize, you can clamp here:
+    if (pixelCoord.x >= int(camera.screenSize.x) ||
+        pixelCoord.y >= int(camera.screenSize.y)) {
+        return;
+    }
+
+    // Build a simplistic forward-facing ray from cameraPos
+    float u = (float(pixelCoord.x) / camera.screenSize.x) * 2.0 - 1.0;
+    float v = (float(pixelCoord.y) / camera.screenSize.y) * 2.0 - 1.0;
+
+    Ray primaryRay;
+    primaryRay.origin = camera.cameraPos;
+    // For a real camera, you'd do full transformations
+    primaryRay.dir = normalize(vec3(u, v, 1.0));
+
+    Intersection isect = intersectCube(primaryRay);
+    vec4 finalColor = vec4(0.0);
+
+    if (isect.hit) {
+        float ndotl = max(dot(isect.normal, normalize(scene.lightDir)), 0.0);
+        bool shadowed = isInShadow(isect.position, normalize(scene.lightDir));
+        float shadowFactor = shadowed ? 0.0 : 1.0;
+
+        // quick shading
+        vec3 baseColor  = vec3(0.8, 0.2, 0.2);
+        vec3 diffuse    = baseColor * scene.lightColor * ndotl * shadowFactor;
+        vec3 ambient    = baseColor * 0.1;
+
+        finalColor.rgb = diffuse + ambient;
+        finalColor.a = 1.0;
+    }
+
+    imageStore(outImage, pixelCoord, finalColor);
+}

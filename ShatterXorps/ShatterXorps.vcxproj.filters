@@ -48,6 +48,21 @@
     <ClCompile Include="Buffer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DepthResources.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PixelTracer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ShadowPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FrustumStaticPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="LightRayPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VulkanInstance.h">
@@ -83,12 +98,55 @@
     <ClInclude Include="Vertex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DepthResources.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CubeVertices.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PixelTracer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShadowPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FrustumStaticPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CylinderMesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LightRayPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shader.frag">
+    <None Include="shaders\quad_frag.frag">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="shader.vert">
+    <None Include="shaders\quad_vert.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\shader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\shader.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\raytrace.comp">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\shadow.vert" />
+    <None Include="shaders\frustum_static.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="shaders\frustum_static.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="light_ray.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="light_ray.vert">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

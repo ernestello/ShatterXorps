@@ -6,32 +6,32 @@
 #include <stdexcept>
 #include <vector>
 
-// RenderPass class encapsulates Vulkan render pass functionality
 class RenderPass {
 public:
-    // Constructor: Adds a parameter to enable/disable depth attachment
     RenderPass(VkDevice device, VkPhysicalDevice physicalDevice, VkFormat swapChainImageFormat, bool enableDepth = true);
     ~RenderPass();
 
+    // The *main* color pass
     VkRenderPass getRenderPass() const { return renderPass; }
 
-    // Destroys the render pass
+    // The new *shadow* pass
+    VkRenderPass getShadowRenderPass() const { return shadowRenderPass; }
+
+    // Destroy
     void destroy(VkDevice device);
 
 private:
     VkDevice device;
     VkPhysicalDevice physicalDevice;
-    VkRenderPass renderPass;
+    VkRenderPass renderPass;      // main color pass
+    VkRenderPass shadowRenderPass; // new shadow pass
 
-    bool depthAttachment; // Flag indicating if depth is enabled
+    bool depthAttachment;
 
-    // Creates the render pass with optional depth
     void createRenderPass(VkFormat swapChainImageFormat, bool enableDepth);
+    void createShadowRenderPass(); // new
 
-    // Finds a suitable depth format
     VkFormat findDepthFormat();
-
-    // Finds a supported format from candidates
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 };
 
